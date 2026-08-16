@@ -143,9 +143,9 @@ export default function PreviewPage() {
       <div className="mx-auto max-w-5xl space-y-16 px-6 py-12">
         <Section
           title="The duplicate block"
-          description="The point of the whole app. Appears the moment you tab out of the LinkedIn field if someone in the workspace already has that person — before you have filled in anything else."
+          description="The point of the whole app. Appears the moment you tab out of either identifier if someone in the workspace already has that person — before you have filled in anything else. The heading names which field collided."
         >
-          <div className="max-w-2xl">
+          <div className="max-w-2xl space-y-4">
             <DuplicateNotice
               match={{
                 id: "2",
@@ -154,6 +154,18 @@ export default function PreviewPage() {
                 status: "responded",
                 owner_name: "Amara Chen",
                 is_mine: false,
+                matched_on: "linkedin",
+              }}
+            />
+            <DuplicateNotice
+              match={{
+                id: "4",
+                first_name: "Tom",
+                last_name: "Bergeron",
+                status: "chat_completed",
+                owner_name: null,
+                is_mine: false,
+                matched_on: "email",
               }}
             />
           </div>

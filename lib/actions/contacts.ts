@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { normalizeEmail } from "@/lib/email";
 import { normalizeLinkedInUrl } from "@/lib/linkedin";
 import { contactSchema, statusTransitionSchema } from "@/lib/schemas/contact";
 import { requireWorkspace, type WorkspaceContext } from "@/lib/workspace";
@@ -15,6 +16,8 @@ export type DuplicateMatch = {
   status: ContactStatus;
   owner_name: string | null;
   is_mine: boolean;
+  /** Which identifier collided, so the notice can say why. */
+  matched_on: "linkedin" | "email";
 };
 
 export type CreateContactResult =
@@ -23,20 +26,56 @@ export type CreateContactResult =
   | { ok: false; kind: "duplicate"; match: DuplicateMatch }
   | { ok: false; kind: "error"; message: string };
 
+type IdentifierKeys = {
+  linkedin: string | null;
+  email: string | null;
+};
+
 const PG_UNIQUE_VIOLATION = "23505";
+const CONTACT_COLUMNS = "id, first_name, last_name, status, owner_id";
 
 async function findDuplicate(
   context: WorkspaceContext,
-  normalized: string,
+  keys: IdentifierKeys,
 ): Promise<DuplicateMatch | null> {
   const { supabase, workspace, userId } = context;
 
-  const { data: contact } = await supabase
-    .from("contacts")
-    .select("id, first_name, last_name, status, owner_id")
-    .eq("workspace_id", workspace.id)
-    .eq("linkedin_url_normalized", normalized)
-    .maybeSingle();
+  let contact: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    status: ContactStatus;
+    owner_id: string | null;
+  } | null = null;
+  let matchedOn: "linkedin" | "email" = "linkedin";
+
+  if (keys.linkedin) {
+    const { data } = await supabase
+      .from("contacts")
+      .select(CONTACT_COLUMNS)
+      .eq("workspace_id", workspace.id)
+      .eq("linkedin_url_normalized", keys.linkedin)
+      .maybeSingle();
+
+    if (data) {
+      contact = data;
+      matchedOn = "linkedin";
+    }
+  }
+
+  if (!contact && keys.email) {
+    const { data } = await supabase
+      .from("contacts")
+      .select(CONTACT_COLUMNS)
+      .eq("workspace_id", workspace.id)
+      .eq("email_normalized", keys.email)
+      .maybeSingle();
+
+    if (data) {
+      contact = data;
+      matchedOn = "email";
+    }
+  }
 
   if (!contact) return null;
 
@@ -57,22 +96,30 @@ async function findDuplicate(
     status: contact.status,
     owner_name: ownerName,
     is_mine: contact.owner_id === userId,
+    matched_on: matchedOn,
   };
 }
 
 /**
- * The on-blur check from spec §8. Advisory only — two people can still blur the
- * field at the same instant, so the unique index remains the real authority and
- * createContact handles the collision.
+ * The on-blur check from spec §8, now covering both identifiers.
+ *
+ * Advisory only — two people can still blur the field at the same instant, so
+ * the unique indexes remain the real authority and createContact handles the
+ * collision.
  */
-export async function lookupDuplicate(
-  linkedinUrl: string,
-): Promise<DuplicateMatch | null> {
-  const normalized = normalizeLinkedInUrl(linkedinUrl);
-  if (!normalized) return null;
+export async function lookupDuplicate(input: {
+  linkedin_url?: string;
+  email?: string;
+}): Promise<DuplicateMatch | null> {
+  const keys: IdentifierKeys = {
+    linkedin: input.linkedin_url ? normalizeLinkedInUrl(input.linkedin_url) : null,
+    email: input.email ? normalizeEmail(input.email) : null,
+  };
+
+  if (!keys.linkedin && !keys.email) return null;
 
   const context = await requireWorkspace();
-  return findDuplicate(context, normalized);
+  return findDuplicate(context, keys);
 }
 
 export async function createContact(
@@ -90,12 +137,22 @@ export async function createContact(
     };
   }
 
-  const normalized = normalizeLinkedInUrl(parsed.data.linkedin_url);
-  if (!normalized) {
+  const linkedinRaw = parsed.data.linkedin_url?.trim() || null;
+  const emailRaw = parsed.data.email?.trim() || null;
+
+  const keys: IdentifierKeys = {
+    linkedin: linkedinRaw ? normalizeLinkedInUrl(linkedinRaw) : null,
+    email: emailRaw ? normalizeEmail(emailRaw) : null,
+  };
+
+  // superRefine already covers this; belt and braces before we reach the DB.
+  if (!keys.linkedin && !keys.email) {
     return {
       ok: false,
       kind: "validation",
-      fieldErrors: { linkedin_url: ["That is not a LinkedIn profile URL"] },
+      fieldErrors: {
+        linkedin_url: ["Add a LinkedIn URL or an email address"],
+      },
     };
   }
 
@@ -106,11 +163,12 @@ export async function createContact(
     p_workspace_id: workspace.id,
     p_first_name: parsed.data.first_name,
     p_last_name: parsed.data.last_name,
-    p_linkedin_url: parsed.data.linkedin_url.trim(),
-    p_linkedin_url_normalized: normalized,
+    p_linkedin_url: keys.linkedin ? linkedinRaw : null,
+    p_linkedin_url_normalized: keys.linkedin,
+    p_email: keys.email ? emailRaw : null,
+    p_email_normalized: keys.email,
     p_company: parsed.data.company,
     p_title: parsed.data.title,
-    p_email: parsed.data.email,
     p_notes: parsed.data.notes,
     p_mark_reached_out: parsed.data.mark_as_reached_out,
   });
@@ -118,7 +176,7 @@ export async function createContact(
   if (error) {
     // The hard block. Someone got here first — show them who.
     if (error.code === PG_UNIQUE_VIOLATION) {
-      const match = await findDuplicate(context, normalized);
+      const match = await findDuplicate(context, keys);
       if (match) return { ok: false, kind: "duplicate", match };
     }
     return { ok: false, kind: "error", message: error.message };

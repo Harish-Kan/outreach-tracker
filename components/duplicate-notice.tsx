@@ -14,10 +14,15 @@ export function DuplicateNotice({ match }: { match: DuplicateMatch }) {
     ? "you"
     : (match.owner_name ?? "nobody yet — this contact is unclaimed");
 
+  const matchedOn =
+    match.matched_on === "linkedin"
+      ? "same LinkedIn profile"
+      : "same email address";
+
   return (
     <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/50">
       <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
-        Already in this workspace
+        Already in this workspace — {matchedOn}
       </p>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">

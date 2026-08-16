@@ -8,9 +8,9 @@
 -- ---------------------------------------------------------------------------
 -- create_contact
 --
--- A unique violation (23505) on (workspace_id, linkedin_url_normalized)
--- propagates to the caller, which catches it and shows the existing contact.
--- That is the hard block from spec §7.2.
+-- A unique violation (23505) on either (workspace_id, linkedin_url_normalized)
+-- or (workspace_id, email_normalized) propagates to the caller, which catches
+-- it and shows the existing contact. That is the hard block from spec §7.2.
 -- ---------------------------------------------------------------------------
 
 create or replace function public.create_contact(
@@ -19,9 +19,10 @@ create or replace function public.create_contact(
   p_last_name               text,
   p_linkedin_url            text,
   p_linkedin_url_normalized text,
+  p_email                   text,
+  p_email_normalized        text,
   p_company                 text,
   p_title                   text,
-  p_email                   text,
   p_notes                   text,
   p_mark_reached_out        boolean
 )
@@ -34,12 +35,14 @@ begin
   insert into public.contacts (
     workspace_id, first_name, last_name,
     linkedin_url, linkedin_url_normalized,
-    company, title, email, notes,
+    email, email_normalized,
+    company, title, notes,
     status, owner_id, created_by
   ) values (
     p_workspace_id, p_first_name, p_last_name,
     p_linkedin_url, p_linkedin_url_normalized,
-    p_company, p_title, p_email, p_notes,
+    p_email, p_email_normalized,
+    p_company, p_title, p_notes,
     case when p_mark_reached_out then 'reached_out' else 'added' end::contact_status,
     case when p_mark_reached_out then auth.uid() else null end,
     auth.uid()
@@ -171,12 +174,12 @@ $$;
 -- Grants
 -- ---------------------------------------------------------------------------
 
-revoke execute on function public.create_contact(uuid, text, text, text, text, text, text, text, text, boolean) from public, anon;
+revoke execute on function public.create_contact(uuid, text, text, text, text, text, text, text, text, text, boolean) from public, anon;
 revoke execute on function public.advance_contact_status(uuid, contact_status, text) from public, anon;
 revoke execute on function public.log_contact_note(uuid, text)                        from public, anon;
 revoke execute on function public.take_contact_ownership(uuid)                        from public, anon;
 
-grant execute on function public.create_contact(uuid, text, text, text, text, text, text, text, text, boolean) to authenticated;
+grant execute on function public.create_contact(uuid, text, text, text, text, text, text, text, text, text, boolean) to authenticated;
 grant execute on function public.advance_contact_status(uuid, contact_status, text) to authenticated;
 grant execute on function public.log_contact_note(uuid, text)                        to authenticated;
 grant execute on function public.take_contact_ownership(uuid)                        to authenticated;

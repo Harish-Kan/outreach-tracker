@@ -102,11 +102,14 @@ create table public.contacts (
   workspace_id            uuid not null references public.workspaces (id) on delete cascade,
   first_name              text not null,
   last_name               text not null,
-  linkedin_url            text not null,
-  linkedin_url_normalized text not null,
+  -- Either identifier will do, but at least one is required. See the
+  -- contacts_requires_an_identifier constraint below.
+  linkedin_url            text,
+  linkedin_url_normalized text,
+  email                   text,
+  email_normalized        text,
   company                 text,
   title                   text,
-  email                   text,
   notes                   text,
   status                  contact_status not null default 'added',
   owner_id                uuid references public.profiles (id) on delete set null,
@@ -115,19 +118,43 @@ create table public.contacts (
   created_at              timestamptz not null default now(),
   updated_at              timestamptz not null default now(),
 
-  -- normalizeLinkedInUrl() in lib/linkedin.ts is the single source of truth for
-  -- this value. This constraint does not re-implement it; it just stops a
-  -- malformed value from reaching the unique index below, where it would sit
-  -- unmatched forever and silently defeat duplicate detection.
+  -- normalizeLinkedInUrl() and normalizeEmail() in lib/ are the single source
+  -- of truth for these values. These constraints do not re-implement them; they
+  -- stop a malformed value from reaching the unique indexes below, where it
+  -- would sit unmatched forever and silently defeat duplicate detection.
   constraint contacts_linkedin_url_normalized_shape
-    check (linkedin_url_normalized ~ '^linkedin\.com/in/[^/?#[:space:]]+$')
+    check (linkedin_url_normalized is null
+           or linkedin_url_normalized ~ '^linkedin\.com/in/[^/?#[:space:]]+$'),
+
+  constraint contacts_email_normalized_shape
+    check (email_normalized is null
+           or email_normalized ~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$'),
+
+  -- A contact with neither identifier cannot be deduplicated against anything,
+  -- which defeats the purpose of the app. One or the other is required.
+  constraint contacts_requires_an_identifier
+    check (linkedin_url_normalized is not null or email_normalized is not null),
+
+  -- Raw and normalized columns are populated together or not at all.
+  constraint contacts_linkedin_pair
+    check ((linkedin_url is null) = (linkedin_url_normalized is null)),
+
+  constraint contacts_email_pair
+    check ((email is null) = (email_normalized is null))
 );
 
--- The single most important constraint in the schema: one person, one row,
--- per workspace. Duplicate handling is a hard block (spec §7.2), so the
--- server action catches 23505 and shows the existing contact instead.
+-- The most important constraints in the schema: one person, one row, per
+-- workspace. Duplicate handling is a hard block (spec §7.2), so the server
+-- action catches 23505 and shows the existing contact instead.
+--
+-- Postgres treats NULLs as distinct in a unique index, so any number of
+-- contacts may omit either identifier — they just are not deduplicated on the
+-- one they omit.
 create unique index contacts_workspace_linkedin_key
   on public.contacts (workspace_id, linkedin_url_normalized);
+
+create unique index contacts_workspace_email_key
+  on public.contacts (workspace_id, email_normalized);
 
 create index contacts_workspace_status_idx        on public.contacts (workspace_id, status);
 create index contacts_workspace_owner_idx         on public.contacts (workspace_id, owner_id);

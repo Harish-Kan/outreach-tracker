@@ -13,6 +13,7 @@ import {
   lookupDuplicate,
   type DuplicateMatch,
 } from "@/lib/actions/contacts";
+import { normalizeEmail } from "@/lib/email";
 import { normalizeLinkedInUrl } from "@/lib/linkedin";
 import { DuplicateNotice } from "@/components/duplicate-notice";
 import { Button } from "@/components/ui/button";
@@ -28,8 +29,8 @@ export function ContactForm() {
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  // Guards against out-of-order responses: a slow check for an old URL must not
-  // overwrite the result for the one currently in the field.
+  // Guards against out-of-order responses: a slow check for an old value must
+  // not overwrite the result for what is currently in the fields.
   const inFlightFor = useRef<string | null>(null);
 
   const {
@@ -37,6 +38,7 @@ export function ContactForm() {
     handleSubmit,
     setError,
     setValue,
+    getValues,
     watch,
     formState: { errors },
   } = useForm<ContactFormValues>({
@@ -45,9 +47,9 @@ export function ContactForm() {
       first_name: "",
       last_name: "",
       linkedin_url: "",
+      email: "",
       company: "",
       title: "",
-      email: "",
       notes: "",
       mark_as_reached_out: false,
     },
@@ -55,28 +57,36 @@ export function ContactForm() {
 
   const markAsReachedOut = watch("mark_as_reached_out");
 
-  async function checkForDuplicate(rawUrl: string) {
-    const normalized = normalizeLinkedInUrl(rawUrl);
+  /**
+   * Runs on blur of either identifier and sends both, so filling in only the
+   * email still catches a person already tracked by that address.
+   */
+  async function checkForDuplicate() {
+    const { linkedin_url, email } = getValues();
 
-    if (!normalized) {
+    const linkedinKey = normalizeLinkedInUrl(linkedin_url ?? "");
+    const emailKey = normalizeEmail(email ?? "");
+
+    if (!linkedinKey && !emailKey) {
       inFlightFor.current = null;
       setDuplicate(null);
       return;
     }
 
-    if (inFlightFor.current === normalized) return;
-    inFlightFor.current = normalized;
+    const requestKey = `${linkedinKey ?? ""}|${emailKey ?? ""}`;
+    if (inFlightFor.current === requestKey) return;
+    inFlightFor.current = requestKey;
 
     setChecking(true);
     try {
-      const match = await lookupDuplicate(rawUrl);
-      if (inFlightFor.current === normalized) setDuplicate(match);
+      const match = await lookupDuplicate({ linkedin_url, email });
+      if (inFlightFor.current === requestKey) setDuplicate(match);
     } catch {
-      // A failed check must not block the form; the unique index still catches
+      // A failed check must not block the form; the unique indexes still catch
       // the duplicate on submit.
-      if (inFlightFor.current === normalized) setDuplicate(null);
+      if (inFlightFor.current === requestKey) setDuplicate(null);
     } finally {
-      if (inFlightFor.current === normalized) setChecking(false);
+      if (inFlightFor.current === requestKey) setChecking(false);
     }
   }
 
@@ -123,27 +133,39 @@ export function ContactForm() {
         </Field>
       </div>
 
-      <Field
-        label="LinkedIn URL"
-        error={errors.linkedin_url?.message}
-        required
-        hint={
-          checking
-            ? "Checking whether anyone already has them…"
-            : "We check this against the workspace before you submit."
-        }
-      >
-        <Input
-          {...register("linkedin_url", {
-            onBlur: (event) => checkForDuplicate(event.target.value),
-          })}
-          placeholder="linkedin.com/in/johnsmith"
-          autoComplete="off"
-          spellCheck={false}
-        />
-      </Field>
+      {/* The identifiers. Either one is enough, and both are what we check
+          the workspace against before anyone wastes a message. */}
+      <fieldset className="space-y-4 rounded-lg border p-4">
+        <legend className="px-1 text-sm font-medium">
+          How do we identify them?
+        </legend>
 
-      {duplicate && <DuplicateNotice match={duplicate} />}
+        <p className="text-sm text-muted-foreground">
+          {checking
+            ? "Checking whether anyone already has them…"
+            : "At least one is required. We check both against the workspace before you submit."}
+        </p>
+
+        <Field label="LinkedIn URL" error={errors.linkedin_url?.message}>
+          <Input
+            {...register("linkedin_url", { onBlur: checkForDuplicate })}
+            placeholder="linkedin.com/in/johnsmith"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </Field>
+
+        <Field label="Email" error={errors.email?.message}>
+          <Input
+            {...register("email", { onBlur: checkForDuplicate })}
+            type="email"
+            placeholder="john@company.com"
+            autoComplete="off"
+          />
+        </Field>
+
+        {duplicate && <DuplicateNotice match={duplicate} />}
+      </fieldset>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Company" error={errors.company?.message}>
@@ -154,10 +176,6 @@ export function ContactForm() {
           <Input {...register("title")} autoComplete="off" />
         </Field>
       </div>
-
-      <Field label="Email" error={errors.email?.message}>
-        <Input {...register("email")} type="email" autoComplete="off" />
-      </Field>
 
       <Field label="Notes" error={errors.notes?.message}>
         <Textarea {...register("notes")} rows={4} />
@@ -193,7 +211,7 @@ export function ContactForm() {
 
         {duplicate && (
           <p className="text-sm text-muted-foreground">
-            Clear the LinkedIn URL to add someone else.
+            Clear the matching field to add someone else.
           </p>
         )}
       </div>

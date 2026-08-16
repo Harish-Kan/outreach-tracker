@@ -85,17 +85,23 @@ export default async function ContactDetailPage({
         <aside className="space-y-6">
           <dl className="space-y-3 rounded-lg border p-4 text-sm">
             <Detail label="Owner">{ownerName ?? "Unclaimed"}</Detail>
-            <Detail label="LinkedIn">
-              <a
-                href={`https://${contact.linkedin_url_normalized}`}
-                target="_blank"
-                rel="noreferrer"
-                className="break-all underline underline-offset-4"
-              >
-                {contact.linkedin_url_normalized}
-              </a>
-            </Detail>
-            {contact.email && <Detail label="Email">{contact.email}</Detail>}
+            {contact.linkedin_url_normalized && (
+              <Detail label="LinkedIn">
+                <a
+                  href={`https://${contact.linkedin_url_normalized}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="break-all underline underline-offset-4"
+                >
+                  {contact.linkedin_url_normalized}
+                </a>
+              </Detail>
+            )}
+            {contact.email && (
+              <Detail label="Email">
+                <span className="break-all">{contact.email}</span>
+              </Detail>
+            )}
             <Detail label="Added">{formatDate(contact.created_at)}</Detail>
           </dl>
 
