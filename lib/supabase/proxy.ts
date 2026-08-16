@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database";
 
-const PUBLIC_ROUTES = ["/login", "/signup", "/auth", "/join"];
+const PUBLIC_ROUTES = ["/login", "/signup", "/auth", "/join", "/preview"];
 
 /**
  * Refreshes the Supabase session on every request and bounces signed-out users
@@ -15,9 +15,16 @@ const PUBLIC_ROUTES = ["/login", "/signup", "/auth", "/join"];
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // Without credentials there is no session to refresh. Returning early lets
+  // the app boot for /preview instead of throwing on every single request.
+  if (!supabaseUrl || !supabaseKey) return response;
+
   const supabase = createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseKey,
     {
       cookies: {
         getAll() {
