@@ -26,9 +26,7 @@ export function DuplicateNotice({ match }: { match: DuplicateMatch }) {
       </p>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="font-medium">
-          {match.first_name} {match.last_name}
-        </span>
+        <span className="font-medium">{match.name}</span>
         <StatusBadge status={match.status} />
       </div>
 

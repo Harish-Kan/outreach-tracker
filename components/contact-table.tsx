@@ -13,8 +13,7 @@ import type { ContactStatus } from "@/types/database";
 
 export type ContactTableRow = {
   id: string;
-  first_name: string;
-  last_name: string;
+  name: string;
   company: string | null;
   status: ContactStatus;
   owner_name: string | null;
@@ -50,7 +49,7 @@ export function ContactTable({
                   href={`/contacts/${contact.id}`}
                   className="underline-offset-4 hover:underline"
                 >
-                  {contact.first_name} {contact.last_name}
+                  {contact.name}
                 </Link>
               </TableCell>
               <TableCell className="text-muted-foreground">

@@ -7,8 +7,7 @@ import {
 } from "./contact";
 
 const base = {
-  first_name: "John",
-  last_name: "Smith",
+  name: "John Smith",
   linkedin_url: "",
   email: "",
   company: "",
@@ -78,11 +77,19 @@ describe("contactFormSchema identifiers", () => {
   });
 
   it("still requires a name", () => {
-    const errors = errorsFor({
-      first_name: "",
-      email: "john@example.com",
-    });
-    expect(errors.first_name?.length).toBeGreaterThan(0);
+    const errors = errorsFor({ name: "", email: "john@example.com" });
+    expect(errors.name?.length).toBeGreaterThan(0);
+  });
+
+  it("accepts a mononym", () => {
+    // One field means no assumption that everyone has two name parts.
+    expect(
+      contactFormSchema.safeParse({
+        ...base,
+        name: "Teller",
+        email: "teller@example.com",
+      }).success,
+    ).toBe(true);
   });
 
   it("treats whitespace-only identifiers as absent", () => {

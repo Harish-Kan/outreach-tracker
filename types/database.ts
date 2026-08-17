@@ -139,8 +139,7 @@ export interface Database {
         Row: {
           id: string;
           workspace_id: string;
-          first_name: string;
-          last_name: string;
+          name: string;
           linkedin_url: string | null;
           linkedin_url_normalized: string | null;
           email: string | null;
@@ -158,8 +157,7 @@ export interface Database {
         Insert: {
           id?: string;
           workspace_id: string;
-          first_name: string;
-          last_name: string;
+          name: string;
           linkedin_url?: string | null;
           linkedin_url_normalized?: string | null;
           email?: string | null;
@@ -175,8 +173,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: {
-          first_name?: string;
-          last_name?: string;
+          name?: string;
           linkedin_url?: string | null;
           linkedin_url_normalized?: string | null;
           email?: string | null;
@@ -230,8 +227,7 @@ export interface Database {
       create_contact: {
         Args: {
           p_workspace_id: string;
-          p_first_name: string;
-          p_last_name: string;
+          p_name: string;
           p_linkedin_url: string | null;
           p_linkedin_url_normalized: string | null;
           p_email: string | null;
@@ -242,6 +238,20 @@ export interface Database {
           p_mark_reached_out: boolean;
         };
         Returns: string;
+      };
+      update_contact: {
+        Args: {
+          p_contact_id: string;
+          p_name: string;
+          p_linkedin_url: string | null;
+          p_linkedin_url_normalized: string | null;
+          p_email: string | null;
+          p_email_normalized: string | null;
+          p_company: string | null;
+          p_title: string | null;
+          p_notes: string | null;
+        };
+        Returns: undefined;
       };
       advance_contact_status: {
         Args: {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -11,6 +12,7 @@ import {
 import {
   createContact,
   lookupDuplicate,
+  updateContact,
   type DuplicateMatch,
 } from "@/lib/actions/contacts";
 import { normalizeEmail } from "@/lib/email";
@@ -22,7 +24,23 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 
-export function ContactForm() {
+export type ContactFormInitial = {
+  id: string;
+  name: string;
+  linkedin_url: string | null;
+  email: string | null;
+  company: string | null;
+  title: string | null;
+  notes: string | null;
+};
+
+/**
+ * Used for both adding and editing. In edit mode the contact is excluded from
+ * its own duplicate check, otherwise saving without changing anything would
+ * report the contact as a duplicate of itself.
+ */
+export function ContactForm({ contact }: { contact?: ContactFormInitial }) {
+  const isEdit = contact !== undefined;
   const router = useRouter();
   const [duplicate, setDuplicate] = useState<DuplicateMatch | null>(null);
   const [checking, setChecking] = useState(false);
@@ -44,13 +62,12 @@ export function ContactForm() {
   } = useForm<ContactFormValues>({
     resolver: zodResolver(contactFormSchema),
     defaultValues: {
-      first_name: "",
-      last_name: "",
-      linkedin_url: "",
-      email: "",
-      company: "",
-      title: "",
-      notes: "",
+      name: contact?.name ?? "",
+      linkedin_url: contact?.linkedin_url ?? "",
+      email: contact?.email ?? "",
+      company: contact?.company ?? "",
+      title: contact?.title ?? "",
+      notes: contact?.notes ?? "",
       mark_as_reached_out: false,
     },
   });
@@ -79,7 +96,11 @@ export function ContactForm() {
 
     setChecking(true);
     try {
-      const match = await lookupDuplicate({ linkedin_url, email });
+      const match = await lookupDuplicate({
+        linkedin_url,
+        email,
+        exclude_contact_id: contact?.id,
+      });
       if (inFlightFor.current === requestKey) setDuplicate(match);
     } catch {
       // A failed check must not block the form; the unique indexes still catch
@@ -94,10 +115,13 @@ export function ContactForm() {
     setFormError(null);
 
     startTransition(async () => {
-      const result = await createContact(values);
+      const result = isEdit
+        ? await updateContact(contact.id, values)
+        : await createContact(values);
 
       if (result.ok) {
         router.push(`/contacts/${result.contactId}`);
+        router.refresh();
         return;
       }
 
@@ -109,9 +133,7 @@ export function ContactForm() {
       if (result.kind === "validation") {
         for (const [field, messages] of Object.entries(result.fieldErrors)) {
           if (messages?.length) {
-            setError(field as keyof ContactFormValues, {
-              message: messages[0],
-            });
+            setError(field as keyof ContactFormValues, { message: messages[0] });
           }
         }
         return;
@@ -123,15 +145,13 @@ export function ContactForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="First name" error={errors.first_name?.message} required>
-          <Input {...register("first_name")} autoComplete="off" />
-        </Field>
-
-        <Field label="Last name" error={errors.last_name?.message} required>
-          <Input {...register("last_name")} autoComplete="off" />
-        </Field>
-      </div>
+      <Field label="Name" error={errors.name?.message} required>
+        <Input
+          {...register("name")}
+          placeholder="Chris Pop"
+          autoComplete="off"
+        />
+      </Field>
 
       {/* The identifiers. Either one is enough, and both are what we check
           the workspace against before anyone wastes a message. */}
@@ -143,13 +163,13 @@ export function ContactForm() {
         <p className="text-sm text-muted-foreground">
           {checking
             ? "Checking whether anyone already has them…"
-            : "At least one is required. We check both against the workspace before you submit."}
+            : "At least one is required. We check both against the workspace before you save."}
         </p>
 
         <Field label="LinkedIn URL" error={errors.linkedin_url?.message}>
           <Input
             {...register("linkedin_url", { onBlur: checkForDuplicate })}
-            placeholder="linkedin.com/in/johnsmith"
+            placeholder="linkedin.com/in/christopherpop"
             autoComplete="off"
             spellCheck={false}
           />
@@ -159,7 +179,7 @@ export function ContactForm() {
           <Input
             {...register("email", { onBlur: checkForDuplicate })}
             type="email"
-            placeholder="john@company.com"
+            placeholder="chris@company.com"
             autoComplete="off"
           />
         </Field>
@@ -181,22 +201,26 @@ export function ContactForm() {
         <Textarea {...register("notes")} rows={4} />
       </Field>
 
-      <label className="flex items-start gap-3 rounded-lg border p-4">
-        <Checkbox
-          checked={markAsReachedOut}
-          onCheckedChange={(checked) =>
-            setValue("mark_as_reached_out", checked === true)
-          }
-          className="mt-0.5"
-        />
-        <span className="text-sm">
-          <span className="font-medium">I have already reached out</span>
-          <span className="mt-1 block text-muted-foreground">
-            Sets the status to Reached out, makes you the owner, and logs the
-            first entry in their timeline.
+      {/* Only on create. Changing status later goes through the detail page so
+          it always writes an interaction row. */}
+      {!isEdit && (
+        <label className="flex items-start gap-3 rounded-lg border p-4">
+          <Checkbox
+            checked={markAsReachedOut}
+            onCheckedChange={(checked) =>
+              setValue("mark_as_reached_out", checked === true)
+            }
+            className="mt-0.5"
+          />
+          <span className="text-sm">
+            <span className="font-medium">I have already reached out</span>
+            <span className="mt-1 block text-muted-foreground">
+              Sets the status to Reached out, makes you the owner, and logs the
+              first entry in their timeline.
+            </span>
           </span>
-        </span>
-      </label>
+        </label>
+      )}
 
       {formError && (
         <p className="text-sm text-destructive" role="alert">
@@ -204,14 +228,29 @@ export function ContactForm() {
         </p>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={pending || duplicate !== null}>
-          {pending ? "Adding…" : "Add contact"}
+          {pending
+            ? isEdit
+              ? "Saving…"
+              : "Adding…"
+            : isEdit
+              ? "Save changes"
+              : "Add contact"}
         </Button>
+
+        {isEdit && (
+          <Link
+            href={`/contacts/${contact.id}`}
+            className="text-sm text-muted-foreground hover:underline"
+          >
+            Cancel
+          </Link>
+        )}
 
         {duplicate && (
           <p className="text-sm text-muted-foreground">
-            Clear the matching field to add someone else.
+            Clear the matching field to continue.
           </p>
         )}
       </div>

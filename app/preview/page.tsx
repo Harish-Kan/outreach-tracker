@@ -21,8 +21,7 @@ const daysAgo = (days: number) =>
 const SAMPLE_CONTACTS: ContactTableRow[] = [
   {
     id: "1",
-    first_name: "Priya",
-    last_name: "Raman",
+    name: "Priya Raman",
     company: "Shopify",
     status: "chat_booked",
     owner_name: "You",
@@ -30,8 +29,7 @@ const SAMPLE_CONTACTS: ContactTableRow[] = [
   },
   {
     id: "2",
-    first_name: "Daniel",
-    last_name: "Okafor",
+    name: "Daniel Okafor",
     company: "Stripe",
     status: "responded",
     owner_name: "Amara Chen",
@@ -39,8 +37,7 @@ const SAMPLE_CONTACTS: ContactTableRow[] = [
   },
   {
     id: "3",
-    first_name: "Sofia",
-    last_name: "Marchetti",
+    name: "Sofia Marchetti",
     company: "Figma",
     status: "reached_out",
     owner_name: "You",
@@ -48,8 +45,7 @@ const SAMPLE_CONTACTS: ContactTableRow[] = [
   },
   {
     id: "4",
-    first_name: "Tom",
-    last_name: "Bergeron",
+    name: "Tom Bergeron",
     company: "RBC",
     status: "chat_completed",
     owner_name: "Amara Chen",
@@ -57,8 +53,7 @@ const SAMPLE_CONTACTS: ContactTableRow[] = [
   },
   {
     id: "5",
-    first_name: "Wen",
-    last_name: "Li",
+    name: "Wen Li",
     company: null,
     status: "added",
     owner_name: null,
@@ -66,8 +61,7 @@ const SAMPLE_CONTACTS: ContactTableRow[] = [
   },
   {
     id: "6",
-    first_name: "Marcus",
-    last_name: "Hale",
+    name: "Marcus Hale",
     company: "Wealthsimple",
     status: "no_response",
     owner_name: "You",
@@ -149,8 +143,7 @@ export default function PreviewPage() {
             <DuplicateNotice
               match={{
                 id: "2",
-                first_name: "Daniel",
-                last_name: "Okafor",
+                name: "Daniel Okafor",
                 status: "responded",
                 owner_name: "Amara Chen",
                 is_mine: false,
@@ -160,8 +153,7 @@ export default function PreviewPage() {
             <DuplicateNotice
               match={{
                 id: "4",
-                first_name: "Tom",
-                last_name: "Bergeron",
+                name: "Tom Bergeron",
                 status: "chat_completed",
                 owner_name: null,
                 is_mine: false,

@@ -11,9 +11,7 @@ export default async function ContactsPage() {
   // belt and braces, and it keeps the query on the index.
   const { data: contacts, error } = await supabase
     .from("contacts")
-    .select(
-      "id, first_name, last_name, company, status, owner_id, last_activity_at",
-    )
+    .select("id, name, company, status, owner_id, last_activity_at")
     .eq("workspace_id", workspace.id)
     .order("last_activity_at", { ascending: false });
 
@@ -32,8 +30,7 @@ export default async function ContactsPage() {
 
   const rows: ContactTableRow[] = (contacts ?? []).map((contact) => ({
     id: contact.id,
-    first_name: contact.first_name,
-    last_name: contact.last_name,
+    name: contact.name,
     company: contact.company,
     status: contact.status,
     owner_name: contact.owner_id

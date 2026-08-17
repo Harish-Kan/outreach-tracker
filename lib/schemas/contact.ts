@@ -50,8 +50,7 @@ const optionalText = z
 /** Server-side. Empty strings become null so they hit the database as NULL. */
 export const contactSchema = z
   .object({
-    first_name: z.string().trim().min(1, "First name is required").max(100),
-    last_name: z.string().trim().min(1, "Last name is required").max(100),
+    name: z.string().trim().min(1, "Name is required").max(200),
     linkedin_url: z.string().trim().max(500).optional(),
     email: z.string().trim().max(320).optional(),
     company: optionalText,
@@ -78,8 +77,7 @@ export type ContactParsed = z.output<typeof contactSchema>;
  */
 export const contactFormSchema = z
   .object({
-    first_name: z.string().trim().min(1, "First name is required").max(100),
-    last_name: z.string().trim().min(1, "Last name is required").max(100),
+    name: z.string().trim().min(1, "Name is required").max(200),
     linkedin_url: z.string().trim().max(500),
     email: z.string().trim().max(320),
     company: z.string().trim().max(500),

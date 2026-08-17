@@ -11,8 +11,7 @@ import type { ContactStatus } from "@/types/database";
 /** What we show when someone is already in the workspace. */
 export type DuplicateMatch = {
   id: string;
-  first_name: string;
-  last_name: string;
+  name: string;
   status: ContactStatus;
   owner_name: string | null;
   is_mine: boolean;
@@ -20,7 +19,7 @@ export type DuplicateMatch = {
   matched_on: "linkedin" | "email";
 };
 
-export type CreateContactResult =
+export type SaveContactResult =
   | { ok: true; contactId: string }
   | { ok: false; kind: "validation"; fieldErrors: Record<string, string[]> }
   | { ok: false; kind: "duplicate"; match: DuplicateMatch }
@@ -32,31 +31,37 @@ type IdentifierKeys = {
 };
 
 const PG_UNIQUE_VIOLATION = "23505";
-const CONTACT_COLUMNS = "id, first_name, last_name, status, owner_id";
+const CONTACT_COLUMNS = "id, name, status, owner_id";
 
 async function findDuplicate(
   context: WorkspaceContext,
   keys: IdentifierKeys,
+  /** Editing a contact must not match it against itself. */
+  excludeContactId?: string,
 ): Promise<DuplicateMatch | null> {
   const { supabase, workspace, userId } = context;
 
+  const query = (column: "linkedin_url_normalized" | "email_normalized", value: string) => {
+    let q = supabase
+      .from("contacts")
+      .select(CONTACT_COLUMNS)
+      .eq("workspace_id", workspace.id)
+      .eq(column, value);
+
+    if (excludeContactId) q = q.neq("id", excludeContactId);
+    return q.maybeSingle();
+  };
+
   let contact: {
     id: string;
-    first_name: string;
-    last_name: string;
+    name: string;
     status: ContactStatus;
     owner_id: string | null;
   } | null = null;
   let matchedOn: "linkedin" | "email" = "linkedin";
 
   if (keys.linkedin) {
-    const { data } = await supabase
-      .from("contacts")
-      .select(CONTACT_COLUMNS)
-      .eq("workspace_id", workspace.id)
-      .eq("linkedin_url_normalized", keys.linkedin)
-      .maybeSingle();
-
+    const { data } = await query("linkedin_url_normalized", keys.linkedin);
     if (data) {
       contact = data;
       matchedOn = "linkedin";
@@ -64,13 +69,7 @@ async function findDuplicate(
   }
 
   if (!contact && keys.email) {
-    const { data } = await supabase
-      .from("contacts")
-      .select(CONTACT_COLUMNS)
-      .eq("workspace_id", workspace.id)
-      .eq("email_normalized", keys.email)
-      .maybeSingle();
-
+    const { data } = await query("email_normalized", keys.email);
     if (data) {
       contact = data;
       matchedOn = "email";
@@ -91,8 +90,7 @@ async function findDuplicate(
 
   return {
     id: contact.id,
-    first_name: contact.first_name,
-    last_name: contact.last_name,
+    name: contact.name,
     status: contact.status,
     owner_name: ownerName,
     is_mine: contact.owner_id === userId,
@@ -100,69 +98,52 @@ async function findDuplicate(
   };
 }
 
+function identifierKeys(linkedinRaw: string | null, emailRaw: string | null): IdentifierKeys {
+  return {
+    linkedin: linkedinRaw ? normalizeLinkedInUrl(linkedinRaw) : null,
+    email: emailRaw ? normalizeEmail(emailRaw) : null,
+  };
+}
+
 /**
- * The on-blur check from spec §8, now covering both identifiers.
+ * The on-blur check from spec §8, covering both identifiers.
  *
  * Advisory only — two people can still blur the field at the same instant, so
- * the unique indexes remain the real authority and createContact handles the
+ * the unique indexes remain the real authority and the save handles the
  * collision.
  */
 export async function lookupDuplicate(input: {
   linkedin_url?: string;
   email?: string;
+  exclude_contact_id?: string;
 }): Promise<DuplicateMatch | null> {
-  const keys: IdentifierKeys = {
-    linkedin: input.linkedin_url ? normalizeLinkedInUrl(input.linkedin_url) : null,
-    email: input.email ? normalizeEmail(input.email) : null,
-  };
-
+  const keys = identifierKeys(input.linkedin_url ?? null, input.email ?? null);
   if (!keys.linkedin && !keys.email) return null;
 
   const context = await requireWorkspace();
-  return findDuplicate(context, keys);
+  return findDuplicate(context, keys, input.exclude_contact_id);
 }
 
-export async function createContact(
-  input: unknown,
-): Promise<CreateContactResult> {
+export async function createContact(input: unknown): Promise<SaveContactResult> {
   const parsed = contactSchema.safeParse(input);
   if (!parsed.success) {
     return {
       ok: false,
       kind: "validation",
-      fieldErrors: z.flattenError(parsed.error).fieldErrors as Record<
-        string,
-        string[]
-      >,
+      fieldErrors: z.flattenError(parsed.error).fieldErrors as Record<string, string[]>,
     };
   }
 
   const linkedinRaw = parsed.data.linkedin_url?.trim() || null;
   const emailRaw = parsed.data.email?.trim() || null;
-
-  const keys: IdentifierKeys = {
-    linkedin: linkedinRaw ? normalizeLinkedInUrl(linkedinRaw) : null,
-    email: emailRaw ? normalizeEmail(emailRaw) : null,
-  };
-
-  // superRefine already covers this; belt and braces before we reach the DB.
-  if (!keys.linkedin && !keys.email) {
-    return {
-      ok: false,
-      kind: "validation",
-      fieldErrors: {
-        linkedin_url: ["Add a LinkedIn URL or an email address"],
-      },
-    };
-  }
+  const keys = identifierKeys(linkedinRaw, emailRaw);
 
   const context = await requireWorkspace();
   const { supabase, workspace } = context;
 
   const { data: contactId, error } = await supabase.rpc("create_contact", {
     p_workspace_id: workspace.id,
-    p_first_name: parsed.data.first_name,
-    p_last_name: parsed.data.last_name,
+    p_name: parsed.data.name,
     p_linkedin_url: keys.linkedin ? linkedinRaw : null,
     p_linkedin_url_normalized: keys.linkedin,
     p_email: keys.email ? emailRaw : null,
@@ -185,6 +166,52 @@ export async function createContact(
   revalidatePath("/contacts");
   revalidatePath("/");
   return { ok: true, contactId: contactId as string };
+}
+
+export async function updateContact(
+  contactId: string,
+  input: unknown,
+): Promise<SaveContactResult> {
+  const parsed = contactSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      kind: "validation",
+      fieldErrors: z.flattenError(parsed.error).fieldErrors as Record<string, string[]>,
+    };
+  }
+
+  const linkedinRaw = parsed.data.linkedin_url?.trim() || null;
+  const emailRaw = parsed.data.email?.trim() || null;
+  const keys = identifierKeys(linkedinRaw, emailRaw);
+
+  const context = await requireWorkspace();
+  const { supabase } = context;
+
+  const { error } = await supabase.rpc("update_contact", {
+    p_contact_id: contactId,
+    p_name: parsed.data.name,
+    p_linkedin_url: keys.linkedin ? linkedinRaw : null,
+    p_linkedin_url_normalized: keys.linkedin,
+    p_email: keys.email ? emailRaw : null,
+    p_email_normalized: keys.email,
+    p_company: parsed.data.company,
+    p_title: parsed.data.title,
+    p_notes: parsed.data.notes,
+  });
+
+  if (error) {
+    if (error.code === PG_UNIQUE_VIOLATION) {
+      const match = await findDuplicate(context, keys, contactId);
+      if (match) return { ok: false, kind: "duplicate", match };
+    }
+    return { ok: false, kind: "error", message: error.message };
+  }
+
+  revalidatePath(`/contacts/${contactId}`);
+  revalidatePath("/contacts");
+  revalidatePath("/");
+  return { ok: true, contactId };
 }
 
 export async function advanceStatus(input: unknown) {

@@ -62,10 +62,14 @@ export default async function ContactDetailPage({
         </Link>
 
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold">
-            {contact.first_name} {contact.last_name}
-          </h1>
+          <h1 className="text-2xl font-semibold">{contact.name}</h1>
           <StatusBadge status={contact.status} />
+          <Link
+            href={`/contacts/${contact.id}/edit`}
+            className="ms-auto text-sm text-muted-foreground hover:underline"
+          >
+            Edit details
+          </Link>
         </div>
 
         <p className="mt-1 text-sm text-muted-foreground">
