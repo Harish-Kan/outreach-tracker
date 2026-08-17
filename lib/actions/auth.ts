@@ -1,10 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export type AuthResult = { error: string } | undefined;
+export type AuthResult = { error?: string; notice?: string } | undefined;
+
+/** The deployed origin, so reset links do not point at localhost in production. */
+async function currentOrigin() {
+  const host = (await headers()).get("host") ?? "localhost:3000";
+  const protocol = host.startsWith("localhost") ? "http" : "https";
+  return `${protocol}://${host}`;
+}
 
 /**
  * Only same-site relative paths. Without this check, `?next=https://evil.tld`
@@ -60,6 +68,66 @@ export async function signUp(
 
   revalidatePath("/", "layout");
   redirect(safeNext(formData.get("next")));
+}
+
+export async function requestPasswordReset(
+  _prev: AuthResult,
+  formData: FormData,
+): Promise<AuthResult> {
+  const email = String(formData.get("email") ?? "").trim();
+  if (!email) return { error: "Enter your email address" };
+
+  const supabase = await createClient();
+  const origin = await currentOrigin();
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    // Lands on the callback, which exchanges the code for a session and then
+    // forwards to the form where the new password is set.
+    redirectTo: `${origin}/auth/callback?next=/reset-password`,
+  });
+
+  if (error) return { error: error.message };
+
+  // Deliberately the same message whether or not the address exists — telling
+  // a stranger which emails have accounts is an information leak.
+  return {
+    notice: "If that email has an account, a reset link is on its way.",
+  };
+}
+
+export async function updatePassword(
+  _prev: AuthResult,
+  formData: FormData,
+): Promise<AuthResult> {
+  const password = String(formData.get("password") ?? "");
+  const confirmation = String(formData.get("confirm_password") ?? "");
+
+  if (password.length < 8) {
+    return { error: "Use at least 8 characters" };
+  }
+  if (password !== confirmation) {
+    return { error: "Those passwords do not match" };
+  }
+
+  const supabase = await createClient();
+
+  // The reset link created a session. No session means the link expired or was
+  // already used, and updateUser would fail with something cryptic.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      error: "That reset link has expired. Request a new one and try again.",
+    };
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  redirect("/contacts");
 }
 
 export async function signOut() {

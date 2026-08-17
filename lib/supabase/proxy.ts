@@ -2,7 +2,14 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database";
 
-const PUBLIC_ROUTES = ["/login", "/signup", "/auth", "/join", "/preview"];
+const PUBLIC_ROUTES = [
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/auth",
+  "/join",
+  "/preview",
+];
 
 /**
  * Refreshes the Supabase session on every request and bounces signed-out users
