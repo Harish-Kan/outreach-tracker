@@ -5,7 +5,7 @@ import { profileNames } from "@/lib/profiles";
 import { requireWorkspace } from "@/lib/workspace";
 
 export default async function ContactsPage() {
-  const { supabase, workspace } = await requireWorkspace();
+  const { supabase, workspace, isShared } = await requireWorkspace();
 
   // Filtered on workspace explicitly even though RLS would also catch it —
   // belt and braces, and it keeps the query on the index.
@@ -69,10 +69,7 @@ export default async function ContactsPage() {
           </Link>
         </div>
       ) : (
-        <ContactTable
-          contacts={rows}
-          showOwner={workspace.type === "team"}
-        />
+        <ContactTable contacts={rows} showOwner={isShared} />
       )}
     </div>
   );

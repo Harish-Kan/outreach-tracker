@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireWorkspace } from "@/lib/workspace";
 import { signOut } from "@/lib/actions/auth";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { Button } from "@/components/ui/button";
 
 export default async function AppLayout({
@@ -8,7 +9,7 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { workspace } = await requireWorkspace();
+  const { workspace, options, isShared } = await requireWorkspace();
 
   return (
     <div className="min-h-svh bg-background">
@@ -18,9 +19,13 @@ export default async function AppLayout({
             Outreach Tracker
           </Link>
 
-          <span className="text-sm text-muted-foreground">
-            {workspace.name}
-          </span>
+          <WorkspaceSwitcher
+            activeId={workspace.id}
+            options={options.map((option) => ({
+              id: option.workspace.id,
+              name: option.workspace.name,
+            }))}
+          />
 
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/contacts" className="hover:underline">
@@ -28,6 +33,16 @@ export default async function AppLayout({
             </Link>
             <Link href="/contacts/new" className="hover:underline">
               Add contact
+            </Link>
+            {/* Hidden until someone else is actually in the workspace —
+                "who reached out to who" answers nothing on your own. */}
+            {isShared && (
+              <Link href="/team" className="hover:underline">
+                Team
+              </Link>
+            )}
+            <Link href="/settings/workspace" className="hover:underline">
+              Settings
             </Link>
           </nav>
 

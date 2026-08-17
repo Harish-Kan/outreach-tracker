@@ -224,6 +224,10 @@ export interface Database {
         Returns: string;
       };
       redeem_invite: { Args: { invite_code: string }; Returns: string };
+      preview_invite: {
+        Args: { invite_code: string };
+        Returns: { workspace_name: string | null; invite_status: string }[];
+      };
       create_contact: {
         Args: {
           p_workspace_id: string;

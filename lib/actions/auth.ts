@@ -6,6 +6,16 @@ import { createClient } from "@/lib/supabase/server";
 
 export type AuthResult = { error: string } | undefined;
 
+/**
+ * Only same-site relative paths. Without this check, `?next=https://evil.tld`
+ * would turn the login form into an open redirect.
+ */
+function safeNext(value: FormDataEntryValue | null): string {
+  const next = typeof value === "string" ? value : "";
+  if (!next.startsWith("/") || next.startsWith("//")) return "/contacts";
+  return next;
+}
+
 export async function signIn(
   _prev: AuthResult,
   formData: FormData,
@@ -20,7 +30,7 @@ export async function signIn(
   if (error) return { error: error.message };
 
   revalidatePath("/", "layout");
-  redirect("/contacts");
+  redirect(safeNext(formData.get("next")));
 }
 
 export async function signUp(
@@ -49,7 +59,7 @@ export async function signUp(
   }
 
   revalidatePath("/", "layout");
-  redirect("/contacts");
+  redirect(safeNext(formData.get("next")));
 }
 
 export async function signOut() {

@@ -36,12 +36,14 @@ export default async function ContactDetailPage({
 
   const names = await profileNames(supabase, [
     contact.owner_id,
+    contact.created_by,
     ...(interactions ?? []).map((entry) => entry.user_id),
   ]);
 
   const ownerName = contact.owner_id
     ? (names.get(contact.owner_id) ?? null)
     : null;
+  const addedByName = names.get(contact.created_by) ?? null;
 
   const entries: TimelineEntry[] = (interactions ?? []).map((entry) => ({
     id: entry.id,
@@ -89,6 +91,7 @@ export default async function ContactDetailPage({
         <aside className="space-y-6">
           <dl className="space-y-3 rounded-lg border p-4 text-sm">
             <Detail label="Owner">{ownerName ?? "Unclaimed"}</Detail>
+            <Detail label="Added by">{addedByName ?? "Unknown"}</Detail>
             {contact.linkedin_url_normalized && (
               <Detail label="LinkedIn">
                 <a

@@ -16,6 +16,16 @@ export type WorkspaceContext = {
   workspace: WorkspaceRow;
   role: MemberRole;
   options: WorkspaceOption[];
+  memberCount: number;
+  /**
+   * Whether to show ownership columns, /team, and "who added who".
+   *
+   * Driven by member count rather than workspace.type, because a personal
+   * workspace someone has been invited into is shared in every way that
+   * matters, even though its type is still 'personal'.
+   */
+  isShared: boolean;
+  canAdminister: boolean;
 };
 
 /**
@@ -65,12 +75,22 @@ export async function getWorkspaceContext(): Promise<WorkspaceContext | null> {
   const active =
     options.find((option) => option.workspace.id === requestedId) ?? options[0];
 
+  const { count } = await supabase
+    .from("memberships")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", active.workspace.id);
+
+  const memberCount = count ?? 1;
+
   return {
     supabase,
     userId: user.id,
     workspace: active.workspace,
     role: active.role,
     options,
+    memberCount,
+    isShared: memberCount > 1,
+    canAdminister: active.role === "owner" || active.role === "admin",
   };
 }
 
