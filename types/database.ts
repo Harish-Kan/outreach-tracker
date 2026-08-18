@@ -240,6 +240,10 @@ export interface Database {
           member_count: number;
         }[];
       };
+      remove_workspace_member: {
+        Args: { p_workspace_id: string; p_user_id: string };
+        Returns: number;
+      };
       preview_invite: {
         Args: { invite_code: string };
         Returns: { workspace_name: string | null; invite_status: string }[];

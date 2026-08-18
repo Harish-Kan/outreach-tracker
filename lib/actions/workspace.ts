@@ -152,3 +152,25 @@ export async function deleteWorkspace(
     movedTo: fallback?.workspace.name ?? null,
   };
 }
+
+/**
+ * Removes someone from the active workspace.
+ *
+ * The RPC releases their contacts and logs the handover, so ownership never
+ * points at a person who can no longer see the workspace.
+ */
+export async function removeMember(userId: string) {
+  const { supabase, workspace } = await requireWorkspace();
+
+  const { data, error } = await supabase.rpc("remove_workspace_member", {
+    p_workspace_id: workspace.id,
+    p_user_id: userId,
+  });
+
+  if (error) return { ok: false as const, message: error.message };
+
+  revalidatePath("/settings/workspace");
+  revalidatePath("/contacts");
+  revalidatePath("/team");
+  return { ok: true as const, releasedContacts: (data as number) ?? 0 };
+}

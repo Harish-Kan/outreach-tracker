@@ -1,17 +1,17 @@
 import { headers } from "next/headers";
 import { DeleteWorkspace } from "@/components/delete-workspace";
 import { InviteManager, type InviteRow } from "@/components/invite-manager";
+import { MemberList, type MemberRow } from "@/components/member-list";
 import {
   CreateWorkspaceForm,
   JoinWorkspaceForm,
   RenameWorkspaceForm,
 } from "@/components/workspace-forms";
-import { formatDate } from "@/lib/format";
 import { profileNames } from "@/lib/profiles";
 import { requireWorkspace } from "@/lib/workspace";
 
 export default async function WorkspaceSettingsPage() {
-  const { supabase, workspace, role, canAdminister, memberCount, options } =
+  const { supabase, workspace, role, canAdminister, memberCount, options, userId } =
     await requireWorkspace();
 
   const { data: memberships } = await supabase
@@ -77,22 +77,17 @@ export default async function WorkspaceSettingsPage() {
         title="Members"
         description="Everyone who can see the contacts in this workspace."
       >
-        <ul className="divide-y rounded-lg border">
-          {(memberships ?? []).map((membership) => (
-            <li
-              key={membership.id}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 p-4 text-sm"
-            >
-              <span className="font-medium">
-                {names.get(membership.user_id) ?? "Unknown"}
-              </span>
-              <span className="text-muted-foreground">{membership.role}</span>
-              <span className="ms-auto text-muted-foreground">
-                joined {formatDate(membership.joined_at)}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <MemberList
+          currentUserId={userId}
+          canRemove={canAdminister}
+          members={(memberships ?? []).map<MemberRow>((membership) => ({
+            id: membership.id,
+            userId: membership.user_id,
+            name: names.get(membership.user_id) ?? "Unknown",
+            role: membership.role,
+            joinedAt: membership.joined_at,
+          }))}
+        />
       </Section>
 
       {canAdminister ? (
