@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireWorkspace } from "@/lib/workspace";
 import { signOut } from "@/lib/actions/auth";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { Button } from "@/components/ui/button";
 
@@ -46,11 +47,14 @@ export default async function AppLayout({
             </Link>
           </nav>
 
-          <form action={signOut} className="ms-auto">
-            <Button type="submit" variant="ghost" size="sm">
-              Sign out
-            </Button>
-          </form>
+          <div className="ms-auto flex items-center gap-2">
+            <ThemeToggle />
+            <form action={signOut}>
+              <Button type="submit" variant="ghost" size="sm">
+                Sign out
+              </Button>
+            </form>
+          </div>
         </div>
       </header>
 

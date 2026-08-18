@@ -6,6 +6,7 @@ import {
   type TimelineEntry,
 } from "@/components/interaction-timeline";
 import { StatusBadge } from "@/components/status-badge";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { formatDate } from "@/lib/format";
 import type { ContactStatus } from "@/types/database";
 
@@ -120,6 +121,9 @@ const ALL_STATUSES: ContactStatus[] = [
 export default function PreviewPage() {
   return (
     <div className="min-h-svh bg-background">
+      <div className="fixed right-4 top-4 z-10">
+        <ThemeToggle />
+      </div>
       <header className="border-b bg-muted/30">
         <div className="mx-auto max-w-5xl px-6 py-10">
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
