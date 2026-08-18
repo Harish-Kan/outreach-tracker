@@ -224,6 +224,19 @@ export interface Database {
         Returns: string;
       };
       redeem_invite: { Args: { invite_code: string }; Returns: string };
+      workspace_context: {
+        Args: Record<string, never>;
+        Returns: {
+          user_id: string;
+          workspace_id: string;
+          name: string;
+          type: WorkspaceType;
+          created_by: string | null;
+          created_at: string;
+          role: MemberRole;
+          member_count: number;
+        }[];
+      };
       preview_invite: {
         Args: { invite_code: string };
         Returns: { workspace_name: string | null; invite_status: string }[];

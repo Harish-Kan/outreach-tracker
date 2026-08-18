@@ -143,7 +143,10 @@ export function ContactForm({ contact }: { contact?: ContactFormInitial }) {
         inFlightFor.current = null;
         reset();
         setFocus("name");
-        router.refresh();
+        // No router.refresh() here: this page shows no server data, and
+        // awaiting one kept the button in its pending state for the whole
+        // round trip. revalidatePath in the action already freshens the
+        // contact list for when the user navigates to it.
         return;
       }
 

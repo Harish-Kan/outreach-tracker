@@ -22,6 +22,15 @@ const PUBLIC_ROUTES = [
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
+  const { pathname } = request.nextUrl;
+
+  // Routes that neither require a session nor redirect based on one. Skipping
+  // the client entirely saves a ~100ms round trip to Supabase on every hit.
+  const skipsAuth = ["/preview", "/join", "/auth", "/forgot-password"].some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
+  if (skipsAuth) return response;
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -56,7 +65,6 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
   const isPublic = PUBLIC_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),
   );

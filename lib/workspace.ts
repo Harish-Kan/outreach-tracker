@@ -8,6 +8,7 @@ export const WORKSPACE_COOKIE = "active_workspace";
 export type WorkspaceOption = {
   workspace: WorkspaceRow;
   role: MemberRole;
+  memberCount: number;
 };
 
 export type WorkspaceContext = {
@@ -29,67 +30,49 @@ export type WorkspaceContext = {
 };
 
 /**
- * Resolves which workspace the request is operating on.
+ * Resolves which workspace the request is operating on, in a single round trip.
  *
  * The cookie is a *request*, never an authority: it is validated against the
- * user's actual memberships every time. Trusting it blindly would leave someone
+ * memberships the RPC actually returns. Trusting it blindly would leave someone
  * who left a workspace staring at empty lists with no explanation.
  */
 export async function getWorkspaceContext(): Promise<WorkspaceContext | null> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  // One call replaces getUser + memberships + workspaces + member count. The
+  // RPC filters on auth.uid() itself, so an unauthenticated request gets no
+  // rows rather than someone else's.
+  const [{ data: rows, error }, cookieStore] = await Promise.all([
+    supabase.rpc("workspace_context"),
+    cookies(),
+  ]);
 
-  const { data: memberships } = await supabase
-    .from("memberships")
-    .select("workspace_id, role")
-    .eq("user_id", user.id)
-    .order("joined_at", { ascending: true });
+  if (error || !rows?.length) return null;
 
-  if (!memberships?.length) return null;
+  const options: WorkspaceOption[] = rows.map((row) => ({
+    workspace: {
+      id: row.workspace_id,
+      name: row.name,
+      type: row.type,
+      created_by: row.created_by,
+      created_at: row.created_at,
+    },
+    role: row.role,
+    memberCount: Number(row.member_count),
+  }));
 
-  const { data: workspaces } = await supabase
-    .from("workspaces")
-    .select("*")
-    .in(
-      "id",
-      memberships.map((m) => m.workspace_id),
-    );
-
-  if (!workspaces?.length) return null;
-
-  const byId = new Map(workspaces.map((w) => [w.id, w]));
-  const options: WorkspaceOption[] = memberships
-    .map((m) => {
-      const workspace = byId.get(m.workspace_id);
-      return workspace ? { workspace, role: m.role } : null;
-    })
-    .filter((option): option is WorkspaceOption => option !== null);
-
-  if (!options.length) return null;
-
-  const requestedId = (await cookies()).get(WORKSPACE_COOKIE)?.value;
+  const requestedId = cookieStore.get(WORKSPACE_COOKIE)?.value;
   const active =
     options.find((option) => option.workspace.id === requestedId) ?? options[0];
 
-  const { count } = await supabase
-    .from("memberships")
-    .select("id", { count: "exact", head: true })
-    .eq("workspace_id", active.workspace.id);
-
-  const memberCount = count ?? 1;
-
   return {
     supabase,
-    userId: user.id,
+    userId: rows[0].user_id,
     workspace: active.workspace,
     role: active.role,
     options,
-    memberCount,
-    isShared: memberCount > 1,
+    memberCount: active.memberCount,
+    isShared: active.memberCount > 1,
     canAdminister: active.role === "owner" || active.role === "admin",
   };
 }
