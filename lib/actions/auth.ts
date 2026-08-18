@@ -10,14 +10,24 @@ export type AuthResult = { error?: string; notice?: string } | undefined;
 
 /**
  * Supabase Auth applies its own limits to these endpoints, so these are a
- * second layer rather than the only one — they refuse the request before it
- * costs a network round trip, and they are tighter than the platform defaults
- * on the two that cost real money or real inbox noise.
+ * second layer rather than the only one.
+ *
+ * Signed-out requests can only be keyed on IP, and a team in one office shares
+ * one. These are therefore set high enough that a whole team fumbling their
+ * passwords at once still gets through — the aim is to stop a script trying
+ * thousands, not to ration the humans. Anything tighter would read as the app
+ * being broken.
  */
-const SIGN_IN_LIMIT = 10;
-const SIGN_UP_LIMIT = 5;
-const RESET_LIMIT = 4;
+const SIGN_IN_LIMIT = 30;
+const SIGN_UP_LIMIT = 10;
+const RESET_LIMIT = 8;
 const AUTH_WINDOW_MS = 15 * 60 * 1000;
+
+/**
+ * Reset is also capped per target address, because the harm there is somebody
+ * else's inbox filling up, and that is not bounded by the attacker's IP.
+ */
+const RESET_PER_EMAIL_LIMIT = 3;
 
 /** The shortest password worth allowing; Supabase's own floor is set separately. */
 const MIN_PASSWORD_LENGTH = 8;
@@ -112,7 +122,7 @@ export async function requestPasswordReset(
   const email = String(formData.get("email") ?? "").trim();
   if (!email) return { error: "Enter your email address" };
 
-  // Without this, one script can send an unlimited number of reset emails to
+  // Without these, one script can send an unlimited number of reset emails to
   // somebody else's inbox using nothing but their address.
   const limit = rateLimit(
     `reset:${await clientKey()}`,
@@ -120,6 +130,19 @@ export async function requestPasswordReset(
     AUTH_WINDOW_MS,
   );
   if (!limit.ok) return { error: tooManyMessage(limit.retryAfter, "reset requests") };
+
+  const perEmail = rateLimit(
+    `reset-to:${email.toLowerCase()}`,
+    RESET_PER_EMAIL_LIMIT,
+    AUTH_WINDOW_MS,
+  );
+  // Same wording as success, so this cannot be used to probe which addresses
+  // have accounts or which are already being targeted.
+  if (!perEmail.ok) {
+    return {
+      notice: "If that email has an account, a reset link is on its way.",
+    };
+  }
 
   const supabase = await createClient();
   const origin = await currentOrigin();

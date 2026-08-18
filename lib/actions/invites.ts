@@ -8,11 +8,16 @@ import { requireWorkspace, WORKSPACE_COOKIE } from "@/lib/workspace";
 
 /**
  * An invite code is a bearer token: whoever holds it sees every contact and
- * every note in the workspace. The database defaults (7 days, 25 uses) are
- * generous for a string that tends to get pasted into group chats, so these
- * are set explicitly on insert instead. Regenerating one is two clicks.
+ * every note in the workspace, so the database default of 25 uses is far more
+ * than a string pasted into a group chat should carry. The uses cap is what
+ * actually bounds the damage of a leak — a code that admits five people is a
+ * much smaller problem than one that admits twenty-five.
+ *
+ * The week-long lifetime is deliberately left alone. Shortening it mostly
+ * annoys somebody who accepts on Monday a code sent on Friday, and revoking is
+ * already one click for the case where a code is known to have escaped.
  */
-const INVITE_LIFETIME_DAYS = 3;
+const INVITE_LIFETIME_DAYS = 7;
 const INVITE_MAX_USES = 5;
 
 /** Codes are ~49 bits of entropy, so this is about stopping the loop, not the guess. */
