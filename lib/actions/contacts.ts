@@ -277,3 +277,37 @@ export async function deleteContact(contactId: string) {
   revalidatePath("/");
   return { ok: true as const };
 }
+
+export async function deleteContacts(contactIds: string[]) {
+  const ids = [...new Set(contactIds)].filter(Boolean);
+  if (!ids.length) return { ok: false as const, message: "Nothing selected" };
+
+  const { supabase, workspace } = await requireWorkspace();
+
+  const { data, error } = await supabase
+    .from("contacts")
+    .delete()
+    .in("id", ids)
+    .eq("workspace_id", workspace.id)
+    .select("id");
+
+  if (error) return { ok: false as const, message: error.message };
+
+  const deleted = data?.length ?? 0;
+
+  // RLS silently skips rows the policy refuses, so comparing counts is the only
+  // way to know some were left behind.
+  if (deleted === 0) {
+    return {
+      ok: false as const,
+      message:
+        "You can only delete contacts you own. Take ownership first, or ask a workspace admin.",
+    };
+  }
+
+  revalidatePath("/contacts");
+  revalidatePath("/team");
+  revalidatePath("/");
+
+  return { ok: true as const, deleted, skipped: ids.length - deleted };
+}

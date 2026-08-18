@@ -1,6 +1,5 @@
-import Link from "next/link";
-import { ContactTable, type ContactTableRow } from "@/components/contact-table";
-import { buttonVariants } from "@/components/ui/button";
+import { ContactList } from "@/components/contact-list";
+import type { ContactTableRow } from "@/components/contact-table";
 import { profileNames } from "@/lib/profiles";
 import { requireWorkspace } from "@/lib/workspace";
 
@@ -33,44 +32,15 @@ export default async function ContactsPage() {
     name: contact.name,
     company: contact.company,
     status: contact.status,
-    owner_name: contact.owner_id
-      ? (names.get(contact.owner_id) ?? null)
-      : null,
+    owner_name: contact.owner_id ? (names.get(contact.owner_id) ?? null) : null,
     last_activity_at: contact.last_activity_at,
   }));
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Contacts</h1>
-          <p className="text-sm text-muted-foreground">
-            {rows.length} {rows.length === 1 ? "person" : "people"} in{" "}
-            {workspace.name}
-          </p>
-        </div>
-
-        <Link href="/contacts/new" className={buttonVariants()}>
-          Add contact
-        </Link>
-      </div>
-
-      {rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center">
-          <p className="font-medium">No contacts yet</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Add the first person you want to reach out to.
-          </p>
-          <Link
-            href="/contacts/new"
-            className={`${buttonVariants()} mt-4`}
-          >
-            Add contact
-          </Link>
-        </div>
-      ) : (
-        <ContactTable contacts={rows} showOwner={isShared} />
-      )}
-    </div>
+    <ContactList
+      contacts={rows}
+      showOwner={isShared}
+      workspaceName={workspace.name}
+    />
   );
 }
