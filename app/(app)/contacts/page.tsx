@@ -1,5 +1,6 @@
 import { ContactList } from "@/components/contact-list";
 import type { ContactTableRow } from "@/components/contact-table";
+import { NotesPanel, type NoteRow } from "@/components/notes-panel";
 import { profileNames } from "@/lib/profiles";
 import { requireWorkspace } from "@/lib/workspace";
 
@@ -21,7 +22,7 @@ const OPTIONAL_COLUMNS = ["is_important", "is_flagged"] as const;
 const UNDEFINED_COLUMN = "42703";
 
 export default async function ContactsPage() {
-  const { supabase, workspace, isShared } = await requireWorkspace();
+  const { supabase, workspace, isShared, userId } = await requireWorkspace();
 
   // Filtered on workspace explicitly even though RLS would also catch it —
   // belt and braces, and it keeps the query on the index.
@@ -65,10 +66,31 @@ export default async function ContactsPage() {
 
   const contacts = (data ?? []) as unknown as Row[];
 
-  const names = await profileNames(
-    supabase,
-    contacts.map((contact) => contact.owner_id),
-  );
+  // RLS decides what comes back: public notes from anyone in the workspace,
+  // private ones only if they are yours. No visibility filter here on purpose —
+  // duplicating the rule in application code is how the two drift apart.
+  const { data: noteData, error: notesError } = await supabase
+    .from("notes")
+    .select("id, body, visibility, author_id, created_at")
+    .eq("workspace_id", workspace.id)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  const noteRowsRaw = noteData ?? [];
+
+  const names = await profileNames(supabase, [
+    ...contacts.map((contact) => contact.owner_id),
+    ...noteRowsRaw.map((note) => note.author_id),
+  ]);
+
+  const notes: NoteRow[] = noteRowsRaw.map((note) => ({
+    id: note.id,
+    body: note.body,
+    visibility: note.visibility,
+    author_name: names.get(note.author_id) ?? null,
+    is_mine: note.author_id === userId,
+    created_at: note.created_at,
+  }));
 
   const rows: ContactTableRow[] = contacts.map((contact) => ({
     id: contact.id,
@@ -84,12 +106,18 @@ export default async function ContactsPage() {
   }));
 
   return (
-    <ContactList
-      contacts={rows}
-      showOwner={isShared}
-      workspaceName={workspace.name}
-      canFlag={available.includes("is_flagged")}
-    />
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+      <ContactList
+        contacts={rows}
+        showOwner={isShared}
+        workspaceName={workspace.name}
+        canFlag={available.includes("is_flagged")}
+      />
+
+      {/* Hidden entirely until migration 0011 runs, rather than showing a
+          panel whose save button can only fail. */}
+      {!notesError && <NotesPanel notes={notes} />}
+    </div>
   );
 }
 

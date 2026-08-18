@@ -18,6 +18,9 @@ export type WorkspaceType = "personal" | "team";
 
 export type MemberRole = "owner" | "admin" | "member";
 
+/** Private notes are visible only to their author; public ones to the workspace. */
+export type NoteVisibility = "private" | "public";
+
 export type ContactStatus =
   | "added"
   | "reached_out"
@@ -216,6 +219,31 @@ export interface Database {
         Update: never;
         Relationships: [];
       };
+      notes: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          author_id: string;
+          body: string;
+          visibility: NoteVisibility;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          author_id: string;
+          body: string;
+          visibility?: NoteVisibility;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          body?: string;
+          visibility?: NoteVisibility;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<never, never>;
     Functions: {
@@ -302,6 +330,7 @@ export interface Database {
       member_role: MemberRole;
       contact_status: ContactStatus;
       interaction_type: InteractionType;
+      note_visibility: NoteVisibility;
     };
     CompositeTypes: Record<never, never>;
   };
