@@ -5,6 +5,7 @@ import {
   InteractionTimeline,
   type TimelineEntry,
 } from "@/components/interaction-timeline";
+import { DeleteContact } from "@/components/delete-contact";
 import { StatusBadge } from "@/components/status-badge";
 import { formatDate } from "@/lib/format";
 import { NEXT_STATUSES } from "@/lib/pipeline";
@@ -127,6 +128,8 @@ export default async function ContactDetailPage({
             isOwner={contact.owner_id === userId}
             ownerName={ownerName}
           />
+
+          <DeleteContact contactId={contact.id} name={contact.name} />
         </aside>
       </div>
     </div>

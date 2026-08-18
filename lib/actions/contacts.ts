@@ -249,3 +249,31 @@ export async function takeOwnership(contactId: string) {
   revalidatePath("/contacts");
   return { ok: true as const };
 }
+
+export async function deleteContact(contactId: string) {
+  const { supabase, workspace } = await requireWorkspace();
+
+  const { data, error } = await supabase
+    .from("contacts")
+    .delete()
+    .eq("id", contactId)
+    .eq("workspace_id", workspace.id)
+    .select("id");
+
+  if (error) return { ok: false as const, message: error.message };
+
+  // RLS turns a forbidden delete into a silent no-op rather than an error, so
+  // an empty result is the only signal that the policy refused it.
+  if (!data?.length) {
+    return {
+      ok: false as const,
+      message:
+        "You can only delete contacts you own. Take ownership first, or ask a workspace admin.",
+    };
+  }
+
+  revalidatePath("/contacts");
+  revalidatePath("/team");
+  revalidatePath("/");
+  return { ok: true as const };
+}
