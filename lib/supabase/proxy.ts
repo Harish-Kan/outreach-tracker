@@ -3,6 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database";
 
 const PUBLIC_ROUTES = [
+  // The landing page. Matching is `=== route` or `startsWith(route + "/")`,
+  // and no real path starts with "//", so listing "/" opens the root only —
+  // not everything beneath it.
+  "/",
   "/login",
   "/signup",
   "/forgot-password",
@@ -76,9 +80,14 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (user && (pathname === "/login" || pathname === "/signup")) {
+  // Signed-in visitors have no use for the landing page or the auth forms.
+  // This points at /contacts rather than "/" so it lands in one hop: "/" would
+  // only redirect onwards to the same place.
+  const SIGNED_OUT_ONLY = ["/", "/login", "/signup"];
+
+  if (user && SIGNED_OUT_ONLY.includes(pathname)) {
     const homeUrl = request.nextUrl.clone();
-    homeUrl.pathname = "/";
+    homeUrl.pathname = "/contacts";
     homeUrl.search = "";
     return NextResponse.redirect(homeUrl);
   }
