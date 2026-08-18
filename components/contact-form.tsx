@@ -46,6 +46,9 @@ export function ContactForm({ contact }: { contact?: ContactFormInitial }) {
   const [duplicate, setDuplicate] = useState<DuplicateMatch | null>(null);
   const [checking, setChecking] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // Everything added since the page loaded, newest first, so a run of
+  // copy-pasted contacts leaves a trail you can click back into.
+  const [added, setAdded] = useState<{ id: string; name: string }[]>([]);
   const [pending, startTransition] = useTransition();
 
   // Guards against out-of-order responses: a slow check for an old value must
@@ -59,6 +62,8 @@ export function ContactForm({ contact }: { contact?: ContactFormInitial }) {
     setValue,
     getValues,
     watch,
+    reset,
+    setFocus,
     formState: { errors },
   } = useForm<ContactFormValues>({
     resolver: zodResolver(contactFormSchema),
@@ -122,7 +127,22 @@ export function ContactForm({ contact }: { contact?: ContactFormInitial }) {
         : await createContact(values);
 
       if (result.ok) {
-        router.push(`/contacts/${result.contactId}`);
+        if (isEdit) {
+          router.push(`/contacts/${result.contactId}`);
+          router.refresh();
+          return;
+        }
+
+        // Adding is usually done in a run, so stay put and reset rather than
+        // navigating away and making the user come back.
+        setAdded((current) => [
+          { id: result.contactId, name: values.name.trim() },
+          ...current,
+        ]);
+        setDuplicate(null);
+        inFlightFor.current = null;
+        reset();
+        setFocus("name");
         router.refresh();
         return;
       }
@@ -147,6 +167,43 @@ export function ContactForm({ contact }: { contact?: ContactFormInitial }) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
+      {added.length > 0 && (
+        <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950/50">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
+              Added {added[0].name}
+            </p>
+            <Link
+              href={`/contacts/${added[0].id}`}
+              className="text-sm underline underline-offset-4"
+            >
+              View details →
+            </Link>
+          </div>
+
+          <p className="mt-1 text-sm text-emerald-900/80 dark:text-emerald-200/80">
+            Form cleared — paste the next one in.
+          </p>
+
+          {added.length > 1 && (
+            <p className="mt-3 text-sm text-emerald-900/80 dark:text-emerald-200/80">
+              Also added:{" "}
+              {added.slice(1).map((entry, index) => (
+                <span key={entry.id}>
+                  {index > 0 && ", "}
+                  <Link
+                    href={`/contacts/${entry.id}`}
+                    className="underline underline-offset-4"
+                  >
+                    {entry.name}
+                  </Link>
+                </span>
+              ))}
+            </p>
+          )}
+        </div>
+      )}
+
       <Field label="Name" error={errors.name?.message} required>
         <Input
           {...register("name")}
