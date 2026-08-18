@@ -4,8 +4,23 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { clientKey, rateLimit, tooManyMessage } from "@/lib/rate-limit";
 
 export type AuthResult = { error?: string; notice?: string } | undefined;
+
+/**
+ * Supabase Auth applies its own limits to these endpoints, so these are a
+ * second layer rather than the only one — they refuse the request before it
+ * costs a network round trip, and they are tighter than the platform defaults
+ * on the two that cost real money or real inbox noise.
+ */
+const SIGN_IN_LIMIT = 10;
+const SIGN_UP_LIMIT = 5;
+const RESET_LIMIT = 4;
+const AUTH_WINDOW_MS = 15 * 60 * 1000;
+
+/** The shortest password worth allowing; Supabase's own floor is set separately. */
+const MIN_PASSWORD_LENGTH = 8;
 
 /** The deployed origin, so reset links do not point at localhost in production. */
 async function currentOrigin() {
@@ -28,6 +43,13 @@ export async function signIn(
   _prev: AuthResult,
   formData: FormData,
 ): Promise<AuthResult> {
+  const limit = rateLimit(
+    `signin:${await clientKey()}`,
+    SIGN_IN_LIMIT,
+    AUTH_WINDOW_MS,
+  );
+  if (!limit.ok) return { error: tooManyMessage(limit.retryAfter, "sign-in attempts") };
+
   const supabase = await createClient();
 
   const { error } = await supabase.auth.signInWithPassword({
@@ -45,12 +67,25 @@ export async function signUp(
   _prev: AuthResult,
   formData: FormData,
 ): Promise<AuthResult> {
-  const supabase = await createClient();
+  const limit = rateLimit(
+    `signup:${await clientKey()}`,
+    SIGN_UP_LIMIT,
+    AUTH_WINDOW_MS,
+  );
+  if (!limit.ok) return { error: tooManyMessage(limit.retryAfter, "sign-up attempts") };
+
   const email = String(formData.get("email") ?? "");
+  const password = String(formData.get("password") ?? "");
+
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return { error: `Use at least ${MIN_PASSWORD_LENGTH} characters` };
+  }
+
+  const supabase = await createClient();
 
   const { data, error } = await supabase.auth.signUp({
     email,
-    password: String(formData.get("password") ?? ""),
+    password,
     options: {
       // Read by the handle_new_user trigger to name the profile and the
       // personal workspace it creates.
@@ -77,6 +112,15 @@ export async function requestPasswordReset(
   const email = String(formData.get("email") ?? "").trim();
   if (!email) return { error: "Enter your email address" };
 
+  // Without this, one script can send an unlimited number of reset emails to
+  // somebody else's inbox using nothing but their address.
+  const limit = rateLimit(
+    `reset:${await clientKey()}`,
+    RESET_LIMIT,
+    AUTH_WINDOW_MS,
+  );
+  if (!limit.ok) return { error: tooManyMessage(limit.retryAfter, "reset requests") };
+
   const supabase = await createClient();
   const origin = await currentOrigin();
 
@@ -102,8 +146,8 @@ export async function updatePassword(
   const password = String(formData.get("password") ?? "");
   const confirmation = String(formData.get("confirm_password") ?? "");
 
-  if (password.length < 8) {
-    return { error: "Use at least 8 characters" };
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return { error: `Use at least ${MIN_PASSWORD_LENGTH} characters` };
   }
   if (password !== confirmation) {
     return { error: "Those passwords do not match" };

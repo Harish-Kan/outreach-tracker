@@ -4,9 +4,19 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { normalizeEmail } from "@/lib/email";
 import { normalizeLinkedInUrl } from "@/lib/linkedin";
+import { clientKey, rateLimit, tooManyMessage } from "@/lib/rate-limit";
 import { contactSchema, statusTransitionSchema } from "@/lib/schemas/contact";
 import { requireWorkspace, type WorkspaceContext } from "@/lib/workspace";
 import type { ContactStatus } from "@/types/database";
+
+const MINUTE_MS = 60 * 1000;
+
+/**
+ * Ceilings set well above what a person filling in forms can reach, so they
+ * never interrupt real work. They exist to stop a loop, not to ration usage.
+ */
+const LOOKUP_LIMIT = 120;
+const WRITE_LIMIT = 60;
 
 /** What we show when someone is already in the workspace. */
 export type DuplicateMatch = {
@@ -121,6 +131,16 @@ export async function lookupDuplicate(input: {
   if (!keys.linkedin && !keys.email) return null;
 
   const context = await requireWorkspace();
+
+  // Refusing here only skips the advisory notice; the unique indexes still
+  // hard-block the save itself, so a throttled lookup cannot let a duplicate in.
+  const limit = rateLimit(
+    `lookup:${await clientKey(context.userId)}`,
+    LOOKUP_LIMIT,
+    MINUTE_MS,
+  );
+  if (!limit.ok) return null;
+
   return findDuplicate(context, keys, input.exclude_contact_id);
 }
 
@@ -140,6 +160,19 @@ export async function createContact(input: unknown): Promise<SaveContactResult> 
 
   const context = await requireWorkspace();
   const { supabase, workspace } = context;
+
+  const limit = rateLimit(
+    `create:${await clientKey(context.userId)}`,
+    WRITE_LIMIT,
+    MINUTE_MS,
+  );
+  if (!limit.ok) {
+    return {
+      ok: false,
+      kind: "error",
+      message: tooManyMessage(limit.retryAfter, "saves"),
+    };
+  }
 
   const { data: contactId, error } = await supabase.rpc("create_contact", {
     p_workspace_id: workspace.id,

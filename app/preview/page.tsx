@@ -7,6 +7,7 @@ import {
 } from "@/components/interaction-timeline";
 import { StatusBadge } from "@/components/status-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { notFound } from "next/navigation";
 import { formatDate } from "@/lib/format";
 import type { ContactStatus } from "@/types/database";
 
@@ -137,6 +138,11 @@ const ALL_STATUSES: ContactStatus[] = [
 ];
 
 export default function PreviewPage() {
+  // Development only. This route needs no session, so in production it was an
+  // unauthenticated page whose whole job was rendering internal UI to anyone who
+  // guessed the path. It stays available locally, where it is genuinely useful.
+  if (process.env.NODE_ENV === "production") notFound();
+
   return (
     <div className="min-h-svh bg-background">
       <div className="fixed right-4 top-4 z-10">

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { JoinInviteButton } from "@/components/workspace-forms";
+import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 const MESSAGES: Record<string, string> = {
@@ -7,7 +8,17 @@ const MESSAGES: Record<string, string> = {
   revoked: "This invite has been revoked by the workspace owner.",
   expired: "This invite has expired. Ask for a fresh code.",
   exhausted: "This invite has been used the maximum number of times.",
+  throttled: "Too many attempts from this network. Wait a few minutes and try again.",
 };
+
+/**
+ * This page is reachable without signing in, and preview_invite is granted to
+ * anon so it can name the workspace before you join. That combination is an
+ * open oracle for guessing codes, so it gets a ceiling — keyed on IP, since
+ * there is no user to key on yet.
+ */
+const PREVIEW_LIMIT = 20;
+const PREVIEW_WINDOW_MS = 10 * 60 * 1000;
 
 export default async function JoinPage({
   params,
@@ -21,14 +32,24 @@ export default async function JoinPage({
     data: { user },
   } = await supabase.auth.getUser();
 
+  // A signed-in visitor is keyed on their id so that sharing an office IP does
+  // not make one person's typo count against everyone else's.
+  const limit = rateLimit(
+    `preview:${await clientKey(user?.id)}`,
+    PREVIEW_LIMIT,
+    PREVIEW_WINDOW_MS,
+  );
+
   // preview_invite is security definer, so this works before membership and
   // even before sign-in.
-  const { data } = await supabase.rpc("preview_invite", {
-    invite_code: code.trim().toLowerCase(),
-  });
+  const { data } = limit.ok
+    ? await supabase.rpc("preview_invite", {
+        invite_code: code.trim().toLowerCase(),
+      })
+    : { data: null };
 
   const preview = Array.isArray(data) ? data[0] : null;
-  const status = preview?.invite_status ?? "not_found";
+  const status = limit.ok ? (preview?.invite_status ?? "not_found") : "throttled";
   const workspaceName = preview?.workspace_name;
 
   return (
