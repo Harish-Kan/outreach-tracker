@@ -93,11 +93,11 @@ export default async function LandingPage() {
                 Contacts are matched on the LinkedIn profile or the email
                 address, normalised first — so{" "}
                 <code className="rounded bg-muted px-1.5 py-0.5 text-[0.8em]">
-                  /in/priya-raman
+                  /in/harish-kandavell
                 </code>{" "}
                 and{" "}
                 <code className="rounded bg-muted px-1.5 py-0.5 text-[0.8em]">
-                  https://www.linkedin.com/in/priya-raman/
+                  https://www.linkedin.com/in/harish-kandavell/
                 </code>{" "}
                 are understood to be the same person.
               </p>
@@ -163,7 +163,7 @@ function DuplicateMock() {
         LinkedIn profile
       </p>
       <div className="mt-1.5 truncate rounded-md border bg-muted/40 px-3 py-2 font-mono text-xs">
-        linkedin.com/in/priya-raman
+        linkedin.com/in/harish-kandavell
       </div>
 
       <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/50">
@@ -172,14 +172,14 @@ function DuplicateMock() {
         </p>
 
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="font-medium">Priya Raman</span>
+          <span className="font-medium">Harish Kandavell</span>
           <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs">
             Chat booked
           </span>
         </div>
 
         <p className="mt-2 text-sm text-amber-900/90 dark:text-amber-200/80">
-          Owned by Sam Okafor.
+          Owned by Harish Kandavell.
         </p>
 
         <span className="mt-3 inline-block text-sm font-medium underline underline-offset-4">
