@@ -41,6 +41,9 @@ type IdentifierKeys = {
 };
 
 const PG_UNIQUE_VIOLATION = "23505";
+
+/** Postgres: column does not exist — a migration has not been run yet. */
+const UNDEFINED_COLUMN = "42703";
 const CONTACT_COLUMNS = "id, name, status, owner_id";
 
 async function findDuplicate(
@@ -351,17 +354,39 @@ export async function deleteContacts(contactIds: string[]) {
  * No interaction row: marking someone important is a view preference, not
  * outreach, and the timeline is the record of outreach.
  */
-export async function toggleImportant(contactId: string, important: boolean) {
+async function setMarker(
+  contactId: string,
+  column: "is_important" | "is_flagged",
+  value: boolean,
+) {
   const { supabase, workspace } = await requireWorkspace();
+
+  // Spelled out rather than computed: a `{ [column]: value }` key widens to
+  // Record<string, boolean>, which the generated Update type rejects outright.
+  const patch =
+    column === "is_important"
+      ? { is_important: value }
+      : { is_flagged: value };
 
   const { data, error } = await supabase
     .from("contacts")
-    .update({ is_important: important })
+    .update(patch)
     .eq("id", contactId)
     .eq("workspace_id", workspace.id)
     .select("id");
 
-  if (error) return { ok: false as const, message: error.message };
+  if (error) {
+    // The flag column arrives in migration 0010. Saying so beats surfacing
+    // raw PostgREST text to somebody clicking a button in a table.
+    if (error.code === UNDEFINED_COLUMN) {
+      return {
+        ok: false as const,
+        message: "Flagging needs migration 0010. Run supabase/apply_0010.sql.",
+      };
+    }
+    return { ok: false as const, message: error.message };
+  }
+
   if (!data?.length) {
     return { ok: false as const, message: "Could not update that contact." };
   }
@@ -370,4 +395,16 @@ export async function toggleImportant(contactId: string, important: boolean) {
   revalidatePath(`/contacts/${contactId}`);
   revalidatePath("/team");
   return { ok: true as const };
+}
+
+export async function toggleImportant(contactId: string, important: boolean) {
+  return setMarker(contactId, "is_important", important);
+}
+
+/**
+ * The flag is deliberately inert: it changes no sort, no filter, no status.
+ * Its whole job is to tint the row so it catches the eye on the way past.
+ */
+export async function toggleFlagged(contactId: string, flagged: boolean) {
+  return setMarker(contactId, "is_flagged", flagged);
 }

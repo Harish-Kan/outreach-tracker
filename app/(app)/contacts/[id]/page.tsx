@@ -5,6 +5,7 @@ import {
   InteractionTimeline,
   type TimelineEntry,
 } from "@/components/interaction-timeline";
+import { ContactFlagToggle } from "@/components/contact-flag-toggle";
 import { ContactImportantToggle } from "@/components/contact-important-toggle";
 import { DeleteContact } from "@/components/delete-contact";
 import { StatusBadge } from "@/components/status-badge";
@@ -70,6 +71,14 @@ export default async function ContactDetailPage({
             contactId={contact.id}
             important={contact.is_important ?? false}
           />
+          {/* Absent until migration 0010 runs, and offering a button that can
+              only fail is worse than not offering one. */}
+          {"is_flagged" in contact && (
+            <ContactFlagToggle
+              contactId={contact.id}
+              flagged={contact.is_flagged ?? false}
+            />
+          )}
           <h1 className="text-2xl font-semibold">{contact.name}</h1>
           <StatusBadge status={contact.status} />
           <Link

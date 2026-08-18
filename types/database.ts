@@ -149,6 +149,7 @@ export interface Database {
           notes: string | null;
           status: ContactStatus;
           is_important: boolean;
+          is_flagged: boolean;
           owner_id: string | null;
           created_by: string;
           last_activity_at: string;
@@ -168,6 +169,7 @@ export interface Database {
           notes?: string | null;
           status?: ContactStatus;
           is_important?: boolean;
+          is_flagged?: boolean;
           owner_id?: string | null;
           created_by: string;
           last_activity_at?: string;
@@ -185,6 +187,7 @@ export interface Database {
           notes?: string | null;
           status?: ContactStatus;
           is_important?: boolean;
+          is_flagged?: boolean;
           owner_id?: string | null;
         };
         Relationships: [];

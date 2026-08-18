@@ -952,4 +952,213 @@ revoke execute on function public.update_contact(uuid, text, text, text, text, t
 grant execute on function public.create_contact(uuid, text, text, text, text, text, text, text, text, boolean) to authenticated;
 grant execute on function public.update_contact(uuid, text, text, text, text, text, text, text, text)           to authenticated;
 
+-- ===========================================================================
+-- 0006_invite_preview.sql
+-- ===========================================================================
+
+-- Invite preview
+--
+-- The join page has to show "Join Harish's Workspace?" before the user is a
+-- member — but until they are, RLS hides both the invite and the workspace.
+-- Hence security definer, same reason redeem_invite needs it.
+--
+-- This deliberately reveals a workspace name to anyone holding the code. That
+-- is the point of the code.
+
+create or replace function public.preview_invite(invite_code text)
+returns table (workspace_name text, invite_status text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  invite public.invites;
+  workspace public.workspaces;
+begin
+  select * into invite from public.invites where code = invite_code;
+
+  if not found then
+    return query select null::text, 'not_found'::text;
+    return;
+  end if;
+
+  select * into workspace from public.workspaces where id = invite.workspace_id;
+
+  if invite.revoked_at is not null then
+    return query select workspace.name, 'revoked'::text;
+  elsif invite.expires_at <= now() then
+    return query select workspace.name, 'expired'::text;
+  elsif invite.uses_count >= invite.max_uses then
+    return query select workspace.name, 'exhausted'::text;
+  else
+    return query select workspace.name, 'valid'::text;
+  end if;
+end;
+$$;
+
+-- Readable before sign-in so the join page can say which workspace is being
+-- offered, then send the user to sign up.
+grant execute on function public.preview_invite(text) to anon, authenticated;
+
+-- ===========================================================================
+-- 0007_workspace_context.sql
+-- ===========================================================================
+
+-- One round trip for the workspace context.
+--
+-- Resolving the active workspace previously took four sequential requests --
+-- auth.getUser, memberships, workspaces, member count -- and every page waited
+-- on all of them before rendering a byte. This returns the lot in one call.
+--
+-- security definer with an explicit auth.uid() filter: the function only ever
+-- returns rows for the calling user, and PostgREST has already verified the
+-- JWT signature before auth.uid() resolves.
+
+create or replace function public.workspace_context()
+returns table (
+  user_id      uuid,
+  workspace_id uuid,
+  name         text,
+  type         workspace_type,
+  created_by   uuid,
+  created_at   timestamptz,
+  role         member_role,
+  member_count bigint
+)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select
+    auth.uid(),
+    w.id,
+    w.name,
+    w.type,
+    w.created_by,
+    w.created_at,
+    m.role,
+    (select count(*) from memberships peers where peers.workspace_id = w.id)
+  from memberships m
+  join workspaces w on w.id = m.workspace_id
+  where m.user_id = auth.uid()
+  order by m.joined_at asc;
+$$;
+
+revoke execute on function public.workspace_context() from public, anon;
+grant execute on function public.workspace_context() to authenticated;
+
+-- ===========================================================================
+-- 0008_important_contacts.sql
+-- ===========================================================================
+
+-- Pinned contacts.
+--
+-- An important contact sorts above everything else regardless of the ordering
+-- the user picked, so the people who matter never scroll off the top.
+
+alter table public.contacts
+  add column is_important boolean not null default false;
+
+-- Partial index: only the pinned rows are worth indexing, and they are the
+-- ones every sort has to pull to the front.
+create index contacts_workspace_important_idx
+  on public.contacts (workspace_id)
+  where is_important;
+
+-- ===========================================================================
+-- 0009_remove_member.sql
+-- ===========================================================================
+
+-- Removing someone from a workspace.
+--
+-- Deleting the membership alone would leave their contacts pointing at an
+-- owner_id who can no longer see the workspace: the contact would render as
+-- "Unclaimed" while still being unclaimable, because owner_id is set. So this
+-- releases their contacts in the same transaction and records why.
+
+create or replace function public.remove_workspace_member(
+  p_workspace_id uuid,
+  p_user_id      uuid
+)
+returns integer
+language plpgsql
+as $$
+declare
+  target_role       member_role;
+  released_contacts integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Not signed in' using errcode = '28000';
+  end if;
+
+  if p_user_id = auth.uid() then
+    raise exception 'You cannot remove yourself from a workspace'
+      using errcode = '22023';
+  end if;
+
+  if not public.has_workspace_role(
+       p_workspace_id, array['owner', 'admin']::member_role[]
+     ) then
+    raise exception 'Only owners and admins can remove people'
+      using errcode = '42501';
+  end if;
+
+  select role into target_role
+  from public.memberships
+  where workspace_id = p_workspace_id and user_id = p_user_id;
+
+  if not found then
+    raise exception 'That person is not in this workspace' using errcode = '22023';
+  end if;
+
+  -- Removing the owner would leave the workspace with nobody who can
+  -- administer or delete it.
+  if target_role = 'owner' then
+    raise exception 'The workspace owner cannot be removed'
+      using errcode = '22023';
+  end if;
+
+  -- Logged before the update, while owner_id still identifies their contacts.
+  insert into public.interactions (contact_id, workspace_id, user_id, type, note)
+  select c.id, c.workspace_id, auth.uid(), 'ownership_changed',
+         'Released when their owner was removed from the workspace'
+  from public.contacts c
+  where c.workspace_id = p_workspace_id
+    and c.owner_id = p_user_id;
+
+  update public.contacts
+  set owner_id = null
+  where workspace_id = p_workspace_id
+    and owner_id = p_user_id;
+
+  get diagnostics released_contacts = row_count;
+
+  delete from public.memberships
+  where workspace_id = p_workspace_id and user_id = p_user_id;
+
+  return released_contacts;
+end;
+$$;
+
+revoke execute on function public.remove_workspace_member(uuid, uuid) from public, anon;
+grant execute on function public.remove_workspace_member(uuid, uuid) to authenticated;
+
+-- ===========================================================================
+-- 0010_flagged_contacts.sql
+-- ===========================================================================
+
+-- Flagged contacts.
+--
+-- Purely a visual marker. Unlike is_important, a flag changes no ordering and
+-- no filtering — it tints the row so it catches the eye while scrolling past.
+-- The two are deliberately separate: "this person matters" and "look at this"
+-- are different signals, and collapsing them loses one of them.
+
+alter table public.contacts
+  add column is_flagged boolean not null default false;
+
+-- No index on purpose. Nothing sorts or filters on this column, so an index
+-- would only add write cost.
+
 commit;

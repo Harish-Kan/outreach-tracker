@@ -6,6 +6,17 @@ import { requireWorkspace } from "@/lib/workspace";
 const BASE_COLUMNS =
   "id, name, company, email, status, owner_id, last_activity_at, created_at";
 
+/**
+ * Columns added by migrations that are run by hand, newest last.
+ *
+ * is_important came with 0008 and is_flagged with 0010. If a migration has not
+ * been applied yet the select fails whole, so the newest column is dropped and
+ * the query retried — the list degrades one feature at a time instead of the
+ * page going down, which is what happened the last time code shipped ahead of
+ * its migration.
+ */
+const OPTIONAL_COLUMNS = ["is_important", "is_flagged"] as const;
+
 /** Postgres: column does not exist. */
 const UNDEFINED_COLUMN = "42703";
 
@@ -14,23 +25,22 @@ export default async function ContactsPage() {
 
   // Filtered on workspace explicitly even though RLS would also catch it —
   // belt and braces, and it keeps the query on the index.
-  const query = (columns: string) =>
+  const query = (columns: string[]) =>
     supabase
       .from("contacts")
-      .select(columns)
+      .select([BASE_COLUMNS, ...columns].join(", "))
       .eq("workspace_id", workspace.id)
       .order("last_activity_at", { ascending: false });
 
-  let { data, error } = await query(`${BASE_COLUMNS}, is_important`);
+  let available: string[] = [...OPTIONAL_COLUMNS];
+  let result = await query(available);
 
-  // Migration 0008 adds is_important. Falling back keeps the page working if
-  // the code is deployed before the migration is run, rather than taking the
-  // contact list down.
-  let importantSupported = true;
-  if (error?.code === UNDEFINED_COLUMN) {
-    importantSupported = false;
-    ({ data, error } = await query(BASE_COLUMNS));
+  while (result.error?.code === UNDEFINED_COLUMN && available.length > 0) {
+    available = available.slice(0, -1);
+    result = await query(available);
   }
+
+  const { data, error } = result;
 
   if (error) {
     return (
@@ -50,6 +60,7 @@ export default async function ContactsPage() {
     last_activity_at: string;
     created_at: string;
     is_important?: boolean;
+    is_flagged?: boolean;
   };
 
   const contacts = (data ?? []) as unknown as Row[];
@@ -66,7 +77,8 @@ export default async function ContactsPage() {
     email: contact.email,
     status: contact.status,
     owner_name: contact.owner_id ? (names.get(contact.owner_id) ?? null) : null,
-    is_important: importantSupported ? (contact.is_important ?? false) : false,
+    is_important: contact.is_important ?? false,
+    is_flagged: contact.is_flagged ?? false,
     last_activity_at: contact.last_activity_at,
     created_at: contact.created_at,
   }));
@@ -76,6 +88,7 @@ export default async function ContactsPage() {
       contacts={rows}
       showOwner={isShared}
       workspaceName={workspace.name}
+      canFlag={available.includes("is_flagged")}
     />
   );
 }

@@ -22,6 +22,7 @@ export type ContactTableRow = {
   status: ContactStatus;
   owner_name: string | null;
   is_important: boolean;
+  is_flagged: boolean;
   last_activity_at: string;
   created_at: string;
 };
@@ -35,6 +36,8 @@ export function ContactTable({
   onToggleAll,
   onToggleImportant,
   pendingImportantId,
+  onToggleFlagged,
+  pendingFlaggedId,
 }: {
   contacts: ContactTableRow[];
   /** Hidden in personal workspaces, where every contact is yours. */
@@ -46,9 +49,14 @@ export function ContactTable({
   onToggleAll?: (checked: boolean) => void;
   onToggleImportant?: (id: string, important: boolean) => void;
   pendingImportantId?: string | null;
+  onToggleFlagged?: (id: string, flagged: boolean) => void;
+  pendingFlaggedId?: string | null;
 }) {
   const selected = selectedIds ?? new Set<string>();
   const allSelected = contacts.length > 0 && selected.size === contacts.length;
+  // Both markers share one narrow column so the table does not grow a second
+  // sliver of a header for what is really one group of controls.
+  const showMarkers = Boolean(onToggleImportant || onToggleFlagged);
 
   return (
     <div className="rounded-lg border">
@@ -64,9 +72,9 @@ export function ContactTable({
                 />
               </TableHead>
             )}
-            {onToggleImportant && (
-              <TableHead className="w-10">
-                <span className="sr-only">Important</span>
+            {showMarkers && (
+              <TableHead className="w-16">
+                <span className="sr-only">Important and flagged</span>
               </TableHead>
             )}
             <TableHead>Name</TableHead>
@@ -81,10 +89,26 @@ export function ContactTable({
           {contacts.map((contact) => {
             const isSelected = selected.has(contact.id);
 
+            // One background wins outright rather than layering two tints:
+            // equal-specificity Tailwind utilities resolve by stylesheet order,
+            // not by the order they appear in this string, so combining them
+            // would be a coin flip. Selection is the more urgent state.
+            const tint = isSelected
+              ? "bg-muted/50"
+              : contact.is_flagged
+                ? "bg-rose-50/70 dark:bg-rose-950/25"
+                : "";
+
+            // The stripe is what actually catches the eye mid-scroll; the tint
+            // alone is too soft to register in peripheral vision.
+            const stripe = contact.is_flagged
+              ? "[&>td:first-child]:border-l-2 [&>td:first-child]:border-l-rose-500"
+              : "";
+
             return (
               <TableRow
                 key={contact.id}
-                className={isSelected ? "bg-muted/50" : undefined}
+                className={`${tint} ${stripe}`.trim() || undefined}
               >
                 {selectable && (
                   <TableCell>
@@ -96,29 +120,57 @@ export function ContactTable({
                   </TableCell>
                 )}
 
-                {onToggleImportant && (
+                {showMarkers && (
                   <TableCell>
-                    <button
-                      type="button"
-                      disabled={pendingImportantId === contact.id}
-                      onClick={() =>
-                        onToggleImportant(contact.id, !contact.is_important)
-                      }
-                      aria-pressed={contact.is_important}
-                      aria-label={
-                        contact.is_important
-                          ? `Remove important from ${contact.name}`
-                          : `Mark ${contact.name} important`
-                      }
-                      title={
-                        contact.is_important
-                          ? "Important — pinned to the top"
-                          : "Mark as important"
-                      }
-                      className="text-muted-foreground transition-colors hover:text-amber-500 disabled:opacity-50"
-                    >
-                      <StarIcon filled={contact.is_important} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      {onToggleImportant && (
+                        <button
+                          type="button"
+                          disabled={pendingImportantId === contact.id}
+                          onClick={() =>
+                            onToggleImportant(contact.id, !contact.is_important)
+                          }
+                          aria-pressed={contact.is_important}
+                          aria-label={
+                            contact.is_important
+                              ? `Remove important from ${contact.name}`
+                              : `Mark ${contact.name} important`
+                          }
+                          title={
+                            contact.is_important
+                              ? "Important — pinned to the top"
+                              : "Mark as important"
+                          }
+                          className="text-muted-foreground transition-colors hover:text-amber-500 disabled:opacity-50"
+                        >
+                          <StarIcon filled={contact.is_important} />
+                        </button>
+                      )}
+
+                      {onToggleFlagged && (
+                        <button
+                          type="button"
+                          disabled={pendingFlaggedId === contact.id}
+                          onClick={() =>
+                            onToggleFlagged(contact.id, !contact.is_flagged)
+                          }
+                          aria-pressed={contact.is_flagged}
+                          aria-label={
+                            contact.is_flagged
+                              ? `Remove flag from ${contact.name}`
+                              : `Flag ${contact.name}`
+                          }
+                          title={
+                            contact.is_flagged
+                              ? "Flagged — highlighted, but not reordered"
+                              : "Flag to make this row stand out"
+                          }
+                          className="text-muted-foreground transition-colors hover:text-rose-500 disabled:opacity-50"
+                        >
+                          <FlagIcon filled={contact.is_flagged} />
+                        </button>
+                      )}
+                    </div>
                   </TableCell>
                 )}
 
@@ -163,6 +215,23 @@ export function ContactTable({
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+export function FlagIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={`size-4 ${filled ? "fill-rose-400 text-rose-500" : "fill-none"}`}
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+      <path d="M4 22v-7" />
+    </svg>
   );
 }
 

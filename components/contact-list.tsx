@@ -4,7 +4,11 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ContactTable, type ContactTableRow } from "@/components/contact-table";
-import { deleteContacts, toggleImportant } from "@/lib/actions/contacts";
+import {
+  deleteContacts,
+  toggleFlagged,
+  toggleImportant,
+} from "@/lib/actions/contacts";
 import { sortContacts, SORT_LABELS, type SortKey } from "@/lib/sorting";
 import { statusLabel } from "@/components/status-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -34,10 +38,14 @@ export function ContactList({
   contacts,
   showOwner,
   workspaceName,
+  canFlag = true,
 }: {
   contacts: ContactTableRow[];
   showOwner: boolean;
   workspaceName: string;
+  /** False until migration 0010 has been run; hides the button rather than
+      offering one that can only fail. */
+  canFlag?: boolean;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -51,6 +59,7 @@ export function ContactList({
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [pendingStar, setPendingStar] = useState<string | null>(null);
+  const [pendingFlag, setPendingFlag] = useState<string | null>(null);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -99,6 +108,17 @@ export function ContactList({
       const result = await toggleImportant(id, important);
       if (!result.ok) setError(result.message);
       setPendingStar(null);
+      router.refresh();
+    });
+  }
+
+  function flag(id: string, flagged: boolean) {
+    setPendingFlag(id);
+    setError(null);
+    startTransition(async () => {
+      const result = await toggleFlagged(id, flagged);
+      if (!result.ok) setError(result.message);
+      setPendingFlag(null);
       router.refresh();
     });
   }
@@ -315,6 +335,8 @@ export function ContactList({
           }
           onToggleImportant={star}
           pendingImportantId={pendingStar}
+          onToggleFlagged={canFlag ? flag : undefined}
+          pendingFlaggedId={pendingFlag}
         />
       )}
     </div>
