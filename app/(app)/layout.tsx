@@ -43,7 +43,7 @@ export default async function AppLayout({
               </Link>
             )}
             <Link href="/settings/workspace" className="hover:underline">
-              Settings
+              Workspace settings
             </Link>
           </nav>
 
