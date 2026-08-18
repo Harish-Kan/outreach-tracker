@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { DeleteWorkspace } from "@/components/delete-workspace";
 import { InviteManager, type InviteRow } from "@/components/invite-manager";
 import {
   CreateWorkspaceForm,
@@ -10,7 +11,7 @@ import { profileNames } from "@/lib/profiles";
 import { requireWorkspace } from "@/lib/workspace";
 
 export default async function WorkspaceSettingsPage() {
-  const { supabase, workspace, role, canAdminister, memberCount } =
+  const { supabase, workspace, role, canAdminister, memberCount, options } =
     await requireWorkspace();
 
   const { data: memberships } = await supabase
@@ -43,6 +44,11 @@ export default async function WorkspaceSettingsPage() {
       uses_count: invite.uses_count,
     }));
   }
+
+  const { count: contactCount } = await supabase
+    .from("contacts")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", workspace.id);
 
   const host = (await headers()).get("host") ?? "localhost:3000";
   const protocol = host.startsWith("localhost") ? "http" : "https";
@@ -121,6 +127,21 @@ export default async function WorkspaceSettingsPage() {
           <CreateWorkspaceForm />
         </div>
       </Section>
+
+      {role === "owner" && (
+        <Section
+          title="Danger zone"
+          description="Deleting a workspace removes its contacts and history for every member. There is no undo and no export."
+        >
+          <DeleteWorkspace
+            workspaceId={workspace.id}
+            workspaceName={workspace.name}
+            contactCount={contactCount ?? 0}
+            memberCount={memberCount}
+            isOnlyWorkspace={options.length < 2}
+          />
+        </Section>
+      )}
     </div>
   );
 }
