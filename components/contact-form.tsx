@@ -15,6 +15,7 @@ import {
   updateContact,
   type DuplicateMatch,
 } from "@/lib/actions/contacts";
+import { COMPANY_SUGGESTIONS } from "@/lib/companies";
 import { normalizeEmail } from "@/lib/email";
 import { normalizeLinkedInUrl } from "@/lib/linkedin";
 import { DuplicateNotice } from "@/components/duplicate-notice";
@@ -188,8 +189,25 @@ export function ContactForm({ contact }: { contact?: ContactFormInitial }) {
       </fieldset>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Company" error={errors.company?.message}>
-          <Input {...register("company")} autoComplete="off" />
+        <Field
+          label="Company"
+          error={errors.company?.message}
+          hint="Start typing to pick a known company, or enter any name."
+        >
+          <Input
+            {...register("company")}
+            list="company-suggestions"
+            placeholder="RBC"
+            autoComplete="off"
+          />
+          {/* A datalist suggests without constraining: the field still accepts
+              anything typed, which matters for small companies and startups
+              that will never be on a curated list. */}
+          <datalist id="company-suggestions">
+            {COMPANY_SUGGESTIONS.map((company) => (
+              <option key={company} value={company} />
+            ))}
+          </datalist>
         </Field>
 
         <Field label="Title" error={errors.title?.message}>
