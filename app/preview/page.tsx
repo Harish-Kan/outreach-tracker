@@ -26,6 +26,9 @@ const SAMPLE_CONTACTS: ContactTableRow[] = [
     company: "Shopify",
     status: "chat_booked",
     owner_name: "You",
+    email: "priya@example.com",
+    is_important: true,
+    created_at: daysAgo(40),
     last_activity_at: daysAgo(1),
   },
   {
@@ -34,6 +37,9 @@ const SAMPLE_CONTACTS: ContactTableRow[] = [
     company: "Stripe",
     status: "responded",
     owner_name: "Amara Chen",
+    email: "daniel@example.com",
+    is_important: false,
+    created_at: daysAgo(30),
     last_activity_at: daysAgo(3),
   },
   {
@@ -42,6 +48,9 @@ const SAMPLE_CONTACTS: ContactTableRow[] = [
     company: "Figma",
     status: "reached_out",
     owner_name: "You",
+    email: "sofia@example.com",
+    is_important: false,
+    created_at: daysAgo(25),
     last_activity_at: daysAgo(16),
   },
   {
@@ -50,6 +59,9 @@ const SAMPLE_CONTACTS: ContactTableRow[] = [
     company: "RBC",
     status: "chat_completed",
     owner_name: "Amara Chen",
+    email: "tom@example.com",
+    is_important: false,
+    created_at: daysAgo(60),
     last_activity_at: daysAgo(21),
   },
   {
@@ -58,6 +70,9 @@ const SAMPLE_CONTACTS: ContactTableRow[] = [
     company: null,
     status: "added",
     owner_name: null,
+    email: null,
+    is_important: true,
+    created_at: daysAgo(1),
     last_activity_at: daysAgo(0),
   },
   {
@@ -66,6 +81,9 @@ const SAMPLE_CONTACTS: ContactTableRow[] = [
     company: "Wealthsimple",
     status: "no_response",
     owner_name: "You",
+    email: "marcus@example.com",
+    is_important: false,
+    created_at: daysAgo(90),
     last_activity_at: daysAgo(34),
   },
 ];

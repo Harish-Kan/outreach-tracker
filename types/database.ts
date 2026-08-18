@@ -148,6 +148,7 @@ export interface Database {
           title: string | null;
           notes: string | null;
           status: ContactStatus;
+          is_important: boolean;
           owner_id: string | null;
           created_by: string;
           last_activity_at: string;
@@ -166,6 +167,7 @@ export interface Database {
           title?: string | null;
           notes?: string | null;
           status?: ContactStatus;
+          is_important?: boolean;
           owner_id?: string | null;
           created_by: string;
           last_activity_at?: string;
@@ -182,6 +184,7 @@ export interface Database {
           title?: string | null;
           notes?: string | null;
           status?: ContactStatus;
+          is_important?: boolean;
           owner_id?: string | null;
         };
         Relationships: [];

@@ -18,9 +18,12 @@ export type ContactTableRow = {
   id: string;
   name: string;
   company: string | null;
+  email: string | null;
   status: ContactStatus;
   owner_name: string | null;
+  is_important: boolean;
   last_activity_at: string;
+  created_at: string;
 };
 
 export function ContactTable({
@@ -30,6 +33,8 @@ export function ContactTable({
   selectedIds,
   onToggle,
   onToggleAll,
+  onToggleImportant,
+  pendingImportantId,
 }: {
   contacts: ContactTableRow[];
   /** Hidden in personal workspaces, where every contact is yours. */
@@ -39,6 +44,8 @@ export function ContactTable({
   selectedIds?: Set<string>;
   onToggle?: (id: string) => void;
   onToggleAll?: (checked: boolean) => void;
+  onToggleImportant?: (id: string, important: boolean) => void;
+  pendingImportantId?: string | null;
 }) {
   const selected = selectedIds ?? new Set<string>();
   const allSelected = contacts.length > 0 && selected.size === contacts.length;
@@ -57,6 +64,11 @@ export function ContactTable({
                 />
               </TableHead>
             )}
+            {onToggleImportant && (
+              <TableHead className="w-10">
+                <span className="sr-only">Important</span>
+              </TableHead>
+            )}
             <TableHead>Name</TableHead>
             <TableHead>Company</TableHead>
             <TableHead>Status</TableHead>
@@ -72,7 +84,6 @@ export function ContactTable({
             return (
               <TableRow
                 key={contact.id}
-                data-state={isSelected ? "selected" : undefined}
                 className={isSelected ? "bg-muted/50" : undefined}
               >
                 {selectable && (
@@ -82,6 +93,32 @@ export function ContactTable({
                       onCheckedChange={() => onToggle?.(contact.id)}
                       aria-label={`Select ${contact.name}`}
                     />
+                  </TableCell>
+                )}
+
+                {onToggleImportant && (
+                  <TableCell>
+                    <button
+                      type="button"
+                      disabled={pendingImportantId === contact.id}
+                      onClick={() =>
+                        onToggleImportant(contact.id, !contact.is_important)
+                      }
+                      aria-pressed={contact.is_important}
+                      aria-label={
+                        contact.is_important
+                          ? `Remove important from ${contact.name}`
+                          : `Mark ${contact.name} important`
+                      }
+                      title={
+                        contact.is_important
+                          ? "Important — pinned to the top"
+                          : "Mark as important"
+                      }
+                      className="text-muted-foreground transition-colors hover:text-amber-500 disabled:opacity-50"
+                    >
+                      <StarIcon filled={contact.is_important} />
+                    </button>
                   </TableCell>
                 )}
 
@@ -126,5 +163,21 @@ export function ContactTable({
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+export function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={`size-4 ${filled ? "fill-amber-400 text-amber-500" : "fill-none"}`}
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M12 2.5l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.3l6.5-.9z" />
+    </svg>
   );
 }

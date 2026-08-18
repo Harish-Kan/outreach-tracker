@@ -1,17 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ContactTable, type ContactTableRow } from "@/components/contact-table";
-import { deleteContacts } from "@/lib/actions/contacts";
+import { deleteContacts, toggleImportant } from "@/lib/actions/contacts";
+import { sortContacts, SORT_LABELS, type SortKey } from "@/lib/sorting";
+import { statusLabel } from "@/components/status-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import type { ContactStatus } from "@/types/database";
+
+const STATUSES: ContactStatus[] = [
+  "added",
+  "reached_out",
+  "responded",
+  "chat_booked",
+  "chat_completed",
+  "no_response",
+  "not_interested",
+];
+
+const selectClass = "rounded-md border bg-background px-2 py-1.5 text-sm";
 
 /**
  * The contact list plus its toolbar.
  *
- * Selection lives here rather than in the table so the Delete control can sit
- * beside "Add contact" while still driving the checkboxes below it.
+ * Filtering and sorting run in the browser over rows already fetched: the list
+ * is small, and a server round trip per sort change would make the control feel
+ * broken given every page here is server-rendered.
  */
 export function ContactList({
   contacts,
@@ -23,12 +40,41 @@ export function ContactList({
   workspaceName: string;
 }) {
   const router = useRouter();
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState<ContactStatus | "all">("all");
+  const [sort, setSort] = useState<SortKey>("activity");
+
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [pendingStar, setPendingStar] = useState<string | null>(null);
+
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+
+    const filtered = contacts.filter((contact) => {
+      if (status !== "all" && contact.status !== status) return false;
+      if (!needle) return true;
+
+      const haystack = [
+        contact.name,
+        contact.company,
+        contact.email,
+        contact.owner_name,
+      ];
+      return haystack.some(
+        (field) => field && field.toLowerCase().includes(needle),
+      );
+    });
+
+    return sortContacts(filtered, sort);
+  }, [contacts, query, status, sort]);
+
+  const importantCount = contacts.filter((c) => c.is_important).length;
+  const filtersActive = query !== "" || status !== "all" || sort !== "activity";
 
   function reset() {
     setSelecting(false);
@@ -46,8 +92,15 @@ export function ContactList({
     });
   }
 
-  function toggleAll(checked: boolean) {
-    setSelected(checked ? new Set(contacts.map((c) => c.id)) : new Set());
+  function star(id: string, important: boolean) {
+    setPendingStar(id);
+    setError(null);
+    startTransition(async () => {
+      const result = await toggleImportant(id, important);
+      if (!result.ok) setError(result.message);
+      setPendingStar(null);
+      router.refresh();
+    });
   }
 
   function remove() {
@@ -67,7 +120,7 @@ export function ContactList({
       // actually happened rather than claiming they all went.
       setNotice(
         result.skipped > 0
-          ? `Deleted ${result.deleted}. ${result.skipped} could not be deleted — you can only delete contacts you own.`
+          ? `Deleted ${result.deleted}. ${result.skipped} could not be deleted, because you can only delete contacts you own.`
           : `Deleted ${result.deleted} ${result.deleted === 1 ? "contact" : "contacts"}.`,
       );
       reset();
@@ -83,6 +136,7 @@ export function ContactList({
           <p className="text-sm text-muted-foreground">
             {contacts.length} {contacts.length === 1 ? "person" : "people"} in{" "}
             {workspaceName}
+            {importantCount > 0 && ` · ${importantCount} important`}
           </p>
         </div>
 
@@ -100,7 +154,12 @@ export function ContactList({
               >
                 Delete
               </Button>
-              <Button variant="ghost" size="sm" disabled={pending} onClick={reset}>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={pending}
+                onClick={reset}
+              >
                 Cancel
               </Button>
             </>
@@ -118,13 +177,75 @@ export function ContactList({
                   Delete contacts
                 </Button>
               )}
-              <Link href="/contacts/new" className={buttonVariants({ size: "sm" })}>
+              <Link
+                href="/contacts/new"
+                className={buttonVariants({ size: "sm" })}
+              >
                 Add contact
               </Link>
             </>
           )}
         </div>
       </div>
+
+      {contacts.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search name, company, email or owner"
+            className="max-w-xs"
+            aria-label="Search contacts"
+          />
+
+          <select
+            value={status}
+            onChange={(event) =>
+              setStatus(event.target.value as ContactStatus | "all")
+            }
+            className={selectClass}
+            aria-label="Filter by status"
+          >
+            <option value="all">All statuses</option>
+            {STATUSES.map((value) => (
+              <option key={value} value={value}>
+                {statusLabel(value)}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={sort}
+            onChange={(event) => setSort(event.target.value as SortKey)}
+            className={selectClass}
+            aria-label="Sort contacts"
+          >
+            {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
+              <option key={key} value={key}>
+                {SORT_LABELS[key]}
+              </option>
+            ))}
+          </select>
+
+          {filtersActive && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setQuery("");
+                setStatus("all");
+                setSort("activity");
+              }}
+            >
+              Reset
+            </Button>
+          )}
+
+          <span className="ms-auto text-sm text-muted-foreground">
+            {visible.length} shown
+          </span>
+        </div>
+      )}
 
       {confirming && (
         <div className="space-y-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4">
@@ -175,14 +296,25 @@ export function ContactList({
             Add contact
           </Link>
         </div>
+      ) : visible.length === 0 ? (
+        <div className="rounded-lg border border-dashed p-12 text-center">
+          <p className="font-medium">Nothing matches</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Try a different search or status.
+          </p>
+        </div>
       ) : (
         <ContactTable
-          contacts={contacts}
+          contacts={visible}
           showOwner={showOwner}
           selectable={selecting}
           selectedIds={selected}
           onToggle={toggle}
-          onToggleAll={toggleAll}
+          onToggleAll={(checked) =>
+            setSelected(checked ? new Set(visible.map((c) => c.id)) : new Set())
+          }
+          onToggleImportant={star}
+          pendingImportantId={pendingStar}
         />
       )}
     </div>

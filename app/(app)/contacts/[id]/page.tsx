@@ -5,6 +5,7 @@ import {
   InteractionTimeline,
   type TimelineEntry,
 } from "@/components/interaction-timeline";
+import { ContactImportantToggle } from "@/components/contact-important-toggle";
 import { DeleteContact } from "@/components/delete-contact";
 import { StatusBadge } from "@/components/status-badge";
 import { formatDate } from "@/lib/format";
@@ -65,6 +66,10 @@ export default async function ContactDetailPage({
         </Link>
 
         <div className="mt-3 flex flex-wrap items-center gap-3">
+          <ContactImportantToggle
+            contactId={contact.id}
+            important={contact.is_important ?? false}
+          />
           <h1 className="text-2xl font-semibold">{contact.name}</h1>
           <StatusBadge status={contact.status} />
           <Link

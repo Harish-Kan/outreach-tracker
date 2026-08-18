@@ -311,3 +311,30 @@ export async function deleteContacts(contactIds: string[]) {
 
   return { ok: true as const, deleted, skipped: ids.length - deleted };
 }
+
+/**
+ * Pins or unpins a contact.
+ *
+ * No interaction row: marking someone important is a view preference, not
+ * outreach, and the timeline is the record of outreach.
+ */
+export async function toggleImportant(contactId: string, important: boolean) {
+  const { supabase, workspace } = await requireWorkspace();
+
+  const { data, error } = await supabase
+    .from("contacts")
+    .update({ is_important: important })
+    .eq("id", contactId)
+    .eq("workspace_id", workspace.id)
+    .select("id");
+
+  if (error) return { ok: false as const, message: error.message };
+  if (!data?.length) {
+    return { ok: false as const, message: "Could not update that contact." };
+  }
+
+  revalidatePath("/contacts");
+  revalidatePath(`/contacts/${contactId}`);
+  revalidatePath("/team");
+  return { ok: true as const };
+}
