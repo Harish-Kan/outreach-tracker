@@ -15,9 +15,9 @@ import {
   updateContact,
   type DuplicateMatch,
 } from "@/lib/actions/contacts";
-import { COMPANY_SUGGESTIONS } from "@/lib/companies";
 import { normalizeEmail } from "@/lib/email";
 import { normalizeLinkedInUrl } from "@/lib/linkedin";
+import { CompanyInput } from "@/components/company-input";
 import { DuplicateNotice } from "@/components/duplicate-notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -74,6 +74,7 @@ export function ContactForm({ contact }: { contact?: ContactFormInitial }) {
   });
 
   const markAsReachedOut = watch("mark_as_reached_out");
+  const company = watch("company");
 
   /**
    * Runs on blur of either identifier and sends both, so filling in only the
@@ -189,25 +190,11 @@ export function ContactForm({ contact }: { contact?: ContactFormInitial }) {
       </fieldset>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field
-          label="Company"
-          error={errors.company?.message}
-          hint="Start typing to pick a known company, or enter any name."
-        >
-          <Input
-            {...register("company")}
-            list="company-suggestions"
-            placeholder="RBC"
-            autoComplete="off"
+        <Field label="Company" error={errors.company?.message}>
+          <CompanyInput
+            value={company}
+            onChange={(next) => setValue("company", next)}
           />
-          {/* A datalist suggests without constraining: the field still accepts
-              anything typed, which matters for small companies and startups
-              that will never be on a curated list. */}
-          <datalist id="company-suggestions">
-            {COMPANY_SUGGESTIONS.map((company) => (
-              <option key={company} value={company} />
-            ))}
-          </datalist>
         </Field>
 
         <Field label="Title" error={errors.title?.message}>
