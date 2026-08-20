@@ -7,6 +7,7 @@ const LABELS: Record<ContactStatus, string> = {
   responded: "Responded",
   chat_booked: "Chat booked",
   chat_completed: "Chat completed",
+  follow_up_needed: "Follow up needed",
   no_response: "No response",
   not_interested: "Not interested",
 };
@@ -23,6 +24,10 @@ const STYLES: Record<ContactStatus, string> = {
     "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200",
   chat_completed:
     "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
+  // Fuchsia is the one loud colour left unused: it has to read as "do
+  // something" without meaning "bad", which orange and rose already cover.
+  follow_up_needed:
+    "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-800 dark:border-fuchsia-800 dark:bg-fuchsia-950 dark:text-fuchsia-200",
   no_response:
     "border-orange-300 bg-orange-50 text-orange-800 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-200",
   not_interested:

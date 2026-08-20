@@ -27,6 +27,7 @@ export type ContactStatus =
   | "responded"
   | "chat_booked"
   | "chat_completed"
+  | "follow_up_needed"
   | "no_response"
   | "not_interested";
 
@@ -36,6 +37,7 @@ export type InteractionType =
   | "replied"
   | "chat_booked"
   | "chat_completed"
+  | "marked_follow_up"
   | "marked_no_response"
   | "marked_not_interested"
   | "note_added"

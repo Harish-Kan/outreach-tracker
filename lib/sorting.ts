@@ -26,8 +26,11 @@ const STATUS_ORDER: Record<ContactStatus, number> = {
   responded: 2,
   chat_booked: 3,
   chat_completed: 4,
-  no_response: 5,
-  not_interested: 6,
+  // Sits after the funnel and before the closed states: still live work,
+  // but not a stage anyone progresses through.
+  follow_up_needed: 5,
+  no_response: 6,
+  not_interested: 7,
 };
 
 type Sortable = {

@@ -21,6 +21,7 @@ const STATUSES: ContactStatus[] = [
   "responded",
   "chat_booked",
   "chat_completed",
+  "follow_up_needed",
   "no_response",
   "not_interested",
 ];

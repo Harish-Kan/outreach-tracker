@@ -7,6 +7,7 @@ const LABELS: Record<InteractionType, string> = {
   replied: "They replied",
   chat_booked: "Booked a chat",
   chat_completed: "Completed the chat",
+  marked_follow_up: "Marked follow up needed",
   marked_no_response: "Marked as no response",
   marked_not_interested: "Marked as not interested",
   note_added: "Added a note",
