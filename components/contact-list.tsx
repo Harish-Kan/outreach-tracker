@@ -5,26 +5,19 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ContactTable, type ContactTableRow } from "@/components/contact-table";
 import {
+  advanceStatus,
   deleteContacts,
   toggleFlagged,
   toggleImportant,
 } from "@/lib/actions/contacts";
+import { CONTACT_STATUSES } from "@/lib/pipeline";
 import { sortContacts, SORT_LABELS, type SortKey } from "@/lib/sorting";
 import { statusLabel } from "@/components/status-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ContactStatus } from "@/types/database";
 
-const STATUSES: ContactStatus[] = [
-  "added",
-  "reached_out",
-  "responded",
-  "chat_booked",
-  "chat_completed",
-  "follow_up_needed",
-  "no_response",
-  "not_interested",
-];
+const STATUSES: readonly ContactStatus[] = CONTACT_STATUSES;
 
 const selectClass = "rounded-md border bg-background px-2 py-1.5 text-sm";
 
@@ -61,6 +54,7 @@ export function ContactList({
   const [pending, startTransition] = useTransition();
   const [pendingStar, setPendingStar] = useState<string | null>(null);
   const [pendingFlag, setPendingFlag] = useState<string | null>(null);
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -109,6 +103,18 @@ export function ContactList({
       const result = await toggleImportant(id, important);
       if (!result.ok) setError(result.message);
       setPendingStar(null);
+      router.refresh();
+    });
+  }
+
+  function advance(id: string, status: ContactStatus) {
+    setPendingStatus(id);
+    setError(null);
+    setNotice(null);
+    startTransition(async () => {
+      const result = await advanceStatus({ contact_id: id, status });
+      if (!result.ok) setError(result.message);
+      setPendingStatus(null);
       router.refresh();
     });
   }
@@ -338,6 +344,10 @@ export function ContactList({
           pendingImportantId={pendingStar}
           onToggleFlagged={canFlag ? flag : undefined}
           pendingFlaggedId={pendingFlag}
+          // Withheld while selecting: a click on the row means "pick this one"
+          // there, and advancing on the way past would be a surprise.
+          onAdvanceStatus={selecting ? undefined : advance}
+          pendingStatusId={pendingStatus}
         />
       )}
     </div>

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { normalizeEmail } from "@/lib/email";
 import { normalizeLinkedInUrl } from "@/lib/linkedin";
+import { CONTACT_STATUSES } from "@/lib/pipeline";
 
 export const IDENTIFIER_REQUIRED = "Add a LinkedIn URL or an email address";
 export const LINKEDIN_INVALID =
@@ -91,15 +92,8 @@ export type ContactFormValues = z.infer<typeof contactFormSchema>;
 
 export const statusTransitionSchema = z.object({
   contact_id: z.uuid(),
-  status: z.enum([
-    "added",
-    "reached_out",
-    "responded",
-    "chat_booked",
-    "chat_completed",
-    "no_response",
-    "not_interested",
-  ]),
+  // Derived rather than repeated: this list was already out of sync once.
+  status: z.enum(CONTACT_STATUSES),
   note: z.string().trim().max(5000).optional(),
 });
 

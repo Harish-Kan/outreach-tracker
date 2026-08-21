@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { StatusBadge } from "@/components/status-badge";
+import { StatusBadge, statusLabel } from "@/components/status-badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { relativeDays } from "@/lib/format";
+import { nextStatus } from "@/lib/pipeline";
 import {
   Table,
   TableBody,
@@ -38,6 +39,8 @@ export function ContactTable({
   pendingImportantId,
   onToggleFlagged,
   pendingFlaggedId,
+  onAdvanceStatus,
+  pendingStatusId,
 }: {
   contacts: ContactTableRow[];
   /** Hidden in personal workspaces, where every contact is yours. */
@@ -51,6 +54,10 @@ export function ContactTable({
   pendingImportantId?: string | null;
   onToggleFlagged?: (id: string, flagged: boolean) => void;
   pendingFlaggedId?: string | null;
+  /** Advances the badge in place. Omitted while selecting, where a click means
+      "pick this row" instead. */
+  onAdvanceStatus?: (id: string, status: ContactStatus) => void;
+  pendingStatusId?: string | null;
 }) {
   const selected = selectedIds ?? new Set<string>();
   const allSelected = contacts.length > 0 && selected.size === contacts.length;
@@ -199,7 +206,11 @@ export function ContactTable({
                   {contact.company ?? "—"}
                 </TableCell>
                 <TableCell>
-                  <StatusBadge status={contact.status} />
+                  <AdvanceableStatus
+                    contact={contact}
+                    onAdvance={onAdvanceStatus}
+                    pending={pendingStatusId === contact.id}
+                  />
                 </TableCell>
                 {showOwner && (
                   <TableCell className="text-muted-foreground">
@@ -215,6 +226,39 @@ export function ContactTable({
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+/**
+ * The status badge, clickable when there is an obvious next step.
+ *
+ * Terminal statuses render as a plain badge: offering a click that does
+ * nothing is worse than offering no click at all.
+ */
+function AdvanceableStatus({
+  contact,
+  onAdvance,
+  pending,
+}: {
+  contact: ContactTableRow;
+  onAdvance?: (id: string, status: ContactStatus) => void;
+  pending: boolean;
+}) {
+  const next = nextStatus(contact.status);
+
+  if (!onAdvance || !next) return <StatusBadge status={contact.status} />;
+
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={() => onAdvance(contact.id, next)}
+      title={`Click to mark ${statusLabel(next).toLowerCase()}`}
+      aria-label={`Move ${contact.name} to ${statusLabel(next)}`}
+      className="rounded-full transition-opacity hover:opacity-65 disabled:opacity-40"
+    >
+      <StatusBadge status={contact.status} />
+    </button>
   );
 }
 

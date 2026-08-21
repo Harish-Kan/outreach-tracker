@@ -1,6 +1,24 @@
 import type { ContactStatus } from "@/types/database";
 
 /**
+ * Every status, in pipeline order. The one place the list is written down.
+ *
+ * The status validation schema and the filter dropdown both derive from this,
+ * because adding 'follow_up_needed' in migration 0012 and forgetting to add it
+ * to the schema made every attempt to set it fail with "Invalid status change".
+ */
+export const CONTACT_STATUSES = [
+  "added",
+  "reached_out",
+  "responded",
+  "chat_booked",
+  "chat_completed",
+  "follow_up_needed",
+  "no_response",
+  "not_interested",
+] as const satisfies readonly ContactStatus[];
+
+/**
  * added → reached_out → responded → chat_booked → chat_completed
  *               ↓            ↓            ↓             ↓
  *         no_response   not_interested    follow_up_needed
@@ -32,7 +50,7 @@ export const NEXT_STATUSES: Record<ContactStatus, ContactStatus[]> = {
     "not_interested",
   ],
   // Previously a dead end. A completed chat often leaves something owed.
-  chat_completed: ["follow_up_needed"],
+  chat_completed: ["follow_up_needed", "not_interested"],
   follow_up_needed: [
     "reached_out",
     "responded",
@@ -46,7 +64,11 @@ export const NEXT_STATUSES: Record<ContactStatus, ContactStatus[]> = {
     "follow_up_needed",
     "not_interested",
   ],
-  not_interested: [],
+  // Not a one-way door. It is one click away from every other status and is
+  // therefore easy to set by accident, so it has to be easy to undo — a
+  // contact stuck here forever because of a misclick is a worse outcome than
+  // an extra correcting line in the timeline.
+  not_interested: ["reached_out", "responded", "follow_up_needed"],
 };
 
 /** Statuses that still expect something from us, used by "needs follow-up". */
@@ -55,3 +77,14 @@ export const ACTIVE_STATUSES: ContactStatus[] = [
   "responded",
   "follow_up_needed",
 ];
+
+/**
+ * Where a one-click advance from the contact list goes, or null at a dead end.
+ *
+ * The first entry in each list is the happy path — the thing that usually
+ * happens next. Everything else stays behind the buttons on the contact page,
+ * where there is room to choose deliberately.
+ */
+export function nextStatus(current: ContactStatus): ContactStatus | null {
+  return NEXT_STATUSES[current][0] ?? null;
+}
