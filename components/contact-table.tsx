@@ -4,7 +4,7 @@ import Link from "next/link";
 import { StatusBadge, statusLabel } from "@/components/status-badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { relativeDays } from "@/lib/format";
-import { nextStatus } from "@/lib/pipeline";
+import { toggleStatus } from "@/lib/pipeline";
 import {
   Table,
   TableBody,
@@ -230,10 +230,11 @@ export function ContactTable({
 }
 
 /**
- * The status badge, clickable when there is an obvious next step.
+ * The status badge, clickable only where it toggles Added and Reached out.
  *
- * Terminal statuses render as a plain badge: offering a click that does
- * nothing is worse than offering no click at all.
+ * Every other status renders as a plain badge. Offering a click that walks
+ * further down the funnel would put judgements about what happened one stray
+ * click away, and the timeline behind them cannot be edited afterwards.
  */
 function AdvanceableStatus({
   contact,
@@ -244,16 +245,22 @@ function AdvanceableStatus({
   onAdvance?: (id: string, status: ContactStatus) => void;
   pending: boolean;
 }) {
-  const next = nextStatus(contact.status);
+  const next = toggleStatus(contact.status);
 
   if (!onAdvance || !next) return <StatusBadge status={contact.status} />;
+
+  const undoing = next === "added";
 
   return (
     <button
       type="button"
       disabled={pending}
       onClick={() => onAdvance(contact.id, next)}
-      title={`Click to mark ${statusLabel(next).toLowerCase()}`}
+      title={
+        undoing
+          ? "Click to undo — back to added"
+          : `Click to mark ${statusLabel(next).toLowerCase()}`
+      }
       aria-label={`Move ${contact.name} to ${statusLabel(next)}`}
       className="rounded-full transition-opacity hover:opacity-65 disabled:opacity-40"
     >

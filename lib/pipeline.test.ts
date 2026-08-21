@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { statusTransitionSchema } from "./schemas/contact";
-import { CONTACT_STATUSES, NEXT_STATUSES, nextStatus } from "./pipeline";
+import { CONTACT_STATUSES, NEXT_STATUSES, toggleStatus } from "./pipeline";
 
 const CONTACT_ID = "00000000-0000-4000-8000-000000000000";
 
@@ -63,17 +63,32 @@ describe("NEXT_STATUSES", () => {
   });
 });
 
-describe("nextStatus", () => {
-  it("returns the first transition, which is the happy path", () => {
-    expect(nextStatus("added")).toBe("reached_out");
-    expect(nextStatus("reached_out")).toBe("responded");
-    expect(nextStatus("responded")).toBe("chat_booked");
-    expect(nextStatus("chat_booked")).toBe("chat_completed");
+describe("toggleStatus", () => {
+  it("moves added and reached out to each other", () => {
+    expect(toggleStatus("added")).toBe("reached_out");
+    expect(toggleStatus("reached_out")).toBe("added");
   });
 
-  it("gives every status somewhere to go on a single click", () => {
+  // The list is for marking someone contacted, not for deciding how a
+  // conversation went. Those changes write an entry to an append-only
+  // timeline, so they stay on the contact page behind a deliberate click.
+  it("refuses every other status, leaving the badge inert", () => {
+    const clickable = ["added", "reached_out"];
+
     for (const status of CONTACT_STATUSES) {
-      expect(nextStatus(status), `"${status}" advances nowhere`).not.toBeNull();
+      if (clickable.includes(status)) continue;
+      expect(
+        toggleStatus(status),
+        `"${status}" should not be clickable from the list`,
+      ).toBeNull();
+    }
+  });
+
+  it("is its own inverse, so a misclick is one click to put right", () => {
+    for (const status of ["added", "reached_out"] as const) {
+      const next = toggleStatus(status);
+      expect(next).not.toBeNull();
+      expect(toggleStatus(next!)).toBe(status);
     }
   });
 });

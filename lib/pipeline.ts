@@ -79,12 +79,22 @@ export const ACTIVE_STATUSES: ContactStatus[] = [
 ];
 
 /**
- * Where a one-click advance from the contact list goes, or null at a dead end.
+ * The single status change offered from the contact list, or null if the badge
+ * should not be clickable.
  *
- * The first entry in each list is the happy path — the thing that usually
- * happens next. Everything else stays behind the buttons on the contact page,
- * where there is room to choose deliberately.
+ * Deliberately just the first step of the funnel, in both directions. Marking
+ * someone as contacted is the thing done dozens of times in a sitting and the
+ * thing most worth saving a page load on; it is also the only change that is
+ * unambiguous from a list, since "reached out" needs no extra context.
+ *
+ * Everything past it — replied, booked, not interested — is a judgement about
+ * something that happened, and belongs on the contact page where there is room
+ * to choose the right one and write a note. Cycling the whole pipeline from a
+ * table row would mostly generate mistakes in an append-only timeline.
  */
-export function nextStatus(current: ContactStatus): ContactStatus | null {
-  return NEXT_STATUSES[current][0] ?? null;
+export function toggleStatus(current: ContactStatus): ContactStatus | null {
+  if (current === "added") return "reached_out";
+  // The undo half: a misclick on a row should be one click to put right.
+  if (current === "reached_out") return "added";
+  return null;
 }
